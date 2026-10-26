@@ -15,6 +15,12 @@ Full approved plan: `docs/PLAN.md`. Approved screen wireframes: `docs/WIREFRAMES
 ## Stack
 SwiftUI · AVAudioEngine · Accelerate/vDSP · Swift Charts · SwiftData
 
+## Xcode project notes
+- Requires Xcode 16+. `VoiceMapper/` is a *synchronized folder*: any file added under it is compiled automatically. Do not edit `project.pbxproj` to add files.
+- Info.plist is generated from build settings (`INFOPLIST_KEY_*`); microphone and Face ID usage strings are already set.
+- Bundle ID `com.thrivestorm2.VoiceMapper`; signing is Automatic — the user picks their Team in Xcode.
+- iPhone only, portrait only, iOS 17.0 minimum, Swift 6 language mode.
+
 ## Module layout
 - `AudioEngine` — capture, hear-yourself output, route monitoring + Bluetooth banner
 - `DSP/` — PitchDetector (YIN/MPM), FormantAnalyzer (LPC), SpectralMetrics (H1–H2, CPP, HNR, jitter, shimmer), VoicingDetector
@@ -25,7 +31,7 @@ SwiftUI · AVAudioEngine · Accelerate/vDSP · Swift Charts · SwiftData
 ## Build sessions
 | # | Session | Scope | Device test | Status |
 |---|---|---|---|---|
-| S1 | Setup | Xcode project, app structure, tab bar with empty screens | App opens, tabs switch | todo |
+| S1 | Setup | Xcode project, app structure, tab bar with empty screens | App opens, tabs switch | built — awaiting device test |
 | S2 | Audio | Engine, mic permission, hear-yourself toggle, volume cap, delay slider | Hear yourself in headphones | todo |
 | S3 | Bluetooth | Route monitoring, "wired recommended" banner, headphones-only lock | Banner appears with AirPods | todo |
 | S4 | Pitch | Pitch detection + note label | Correct note when humming | todo |
