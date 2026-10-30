@@ -184,6 +184,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = VoiceMapper;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "VoiceMapper can use Face ID to lock your voice practice data.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "VoiceMapper listens to your voice to show pitch and resonance. Audio is analyzed on your iPhone and never leaves it.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -213,6 +214,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = VoiceMapper;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "VoiceMapper can use Face ID to lock your voice practice data.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "VoiceMapper listens to your voice to show pitch and resonance. Audio is analyzed on your iPhone and never leaves it.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
