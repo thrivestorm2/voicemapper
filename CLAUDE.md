@@ -8,7 +8,9 @@ Full approved plan: `docs/PLAN.md`. Approved screen wireframes: `docs/WIREFRAMES
 ## Working rules (Claude Pro budget, spread-out pace)
 - One session = one row of the build table below. Stop at the session boundary.
 - Read only the files the current session needs; don't re-scan the whole repo.
-- The user builds in Xcode on a Mac and reports errors/screenshots back. This Linux container cannot build iOS.
+- Development happens on the user's Mac. Claude builds locally for the simulator and fixes errors before handing off:
+  `xcodebuild -project VoiceMapper.xcodeproj -scheme VoiceMapper -destination 'platform=iOS Simulator,name=iPhone 18 Pro' build`
+  It can also launch the app and screenshot it with `xcrun simctl`. Device tests (mic, headphones, Bluetooth, Face ID) still need the user's iPhone.
 - Commit + push at the end of every session, then update the status column below.
 - Use Sonnet for routine UI sessions; Opus for DSP sessions (S3, S5, S6, S10).
 
@@ -31,7 +33,7 @@ SwiftUI · AVAudioEngine · Accelerate/vDSP · Swift Charts · SwiftData
 ## Build sessions
 | # | Session | Scope | Device test | Status |
 |---|---|---|---|---|
-| S1 | Setup | Xcode project, app structure, tab bar with empty screens | App opens, tabs switch | built — awaiting device test |
+| S1 | Setup | Xcode project, app structure, tab bar with empty screens | App opens, tabs switch | simulator build OK — awaiting device test |
 | S2 | Audio | Engine, mic permission, hear-yourself toggle, volume cap, delay slider | Hear yourself in headphones | todo |
 | S3 | Bluetooth | Route monitoring, "wired recommended" banner, headphones-only lock | Banner appears with AirPods | todo |
 | S4 | Pitch | Pitch detection + note label | Correct note when humming | todo |
