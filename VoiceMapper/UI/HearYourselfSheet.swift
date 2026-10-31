@@ -58,7 +58,7 @@ struct HearYourselfSheet: View {
                                 .foregroundStyle(.orange)
                         }
                         Text("The iPhone mic is recommended. It records your voice at full quality with no wireless delay, so pitch and resonance readings are as accurate as possible. Bluetooth mics (like AirPods) compress your voice and cut detail that resonance depends on. A wired mic is also fine.")
-                        Text("Automatic uses a wired or USB mic when one is connected, otherwise the iPhone mic.")
+                        Text("Automatic always uses the iPhone mic.")
                     }
                 }
 

@@ -30,32 +30,36 @@ final class AudioEngine {
 
     var volume: Float {
         didSet {
-            monitorMixer.outputVolume = volume
+            monitorMixer?.outputVolume = volume
             UserDefaults.standard.set(volume, forKey: Keys.volume)
         }
     }
 
     var delayMs: Double {
         didSet {
-            delay.delayTime = delayMs / 1000
+            delay?.delayTime = delayMs / 1000
             UserDefaults.standard.set(delayMs, forKey: Keys.delayMs)
         }
     }
 
-    /// The user's chosen mic, or nil for automatic (wired/USB mic, else iPhone).
+    /// The user's chosen mic, or nil for automatic (the iPhone mic).
     var selectedMicrophoneID: String? {
         didSet {
             UserDefaults.standard.set(selectedMicrophoneID, forKey: Keys.microphone)
             applyPreferredInput()
             refreshRoute()
+            if isHearingYourself { restart() }
         }
     }
 
     var isAboveSafeVolume: Bool { volume > Self.safeVolumeCap }
 
-    private let engine = AVAudioEngine()
-    private let delay = AVAudioUnitDelay()
-    private let monitorMixer = AVAudioMixerNode()
+    // Rebuilt on every start: after a hardware change (e.g. switching to a
+    // Bluetooth mic, which changes the sample rate) a reused engine can keep
+    // stale formats and go silent.
+    private var engine: AVAudioEngine?
+    private var delay: AVAudioUnitDelay?
+    private var monitorMixer: AVAudioMixerNode?
     private let session = AVAudioSession.sharedInstance()
 
     private enum Keys {
@@ -69,16 +73,6 @@ final class AudioEngine {
         volume = defaults.object(forKey: Keys.volume) as? Float ?? 0.4
         delayMs = defaults.object(forKey: Keys.delayMs) as? Double ?? 0
         selectedMicrophoneID = defaults.string(forKey: Keys.microphone)
-
-        // Pure delay: no feedback, fully wet, no extra filtering.
-        delay.feedback = 0
-        delay.wetDryMix = 100
-        delay.lowPassCutoff = 18_000
-        delay.delayTime = delayMs / 1000
-        monitorMixer.outputVolume = volume
-
-        engine.attach(delay)
-        engine.attach(monitorMixer)
 
         micPermission = Self.currentPermission()
         // Setting the category without activating doesn't affect other audio,
@@ -131,39 +125,65 @@ final class AudioEngine {
     }
 
     private func start() throws {
+        engine?.stop()
         try session.setActive(true)
 
+        let engine = AVAudioEngine()
         let input = engine.inputNode
-        let format = input.outputFormat(forBus: 0)
+        let format = input.inputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw AudioEngineError.noMicrophone
         }
 
-        engine.disconnectNodeOutput(input)
-        engine.disconnectNodeOutput(delay)
-        engine.disconnectNodeOutput(monitorMixer)
+        // Pure delay: no feedback, fully wet, no extra filtering.
+        let delay = AVAudioUnitDelay()
+        delay.feedback = 0
+        delay.wetDryMix = 100
+        delay.lowPassCutoff = 18_000
+        delay.delayTime = delayMs / 1000
+        let monitorMixer = AVAudioMixerNode()
+        monitorMixer.outputVolume = volume
+
+        engine.attach(delay)
+        engine.attach(monitorMixer)
         engine.connect(input, to: delay, format: format)
         engine.connect(delay, to: monitorMixer, format: format)
+        // The main mixer converts to the output's rate, which can differ from
+        // the input's (e.g. Bluetooth mic in, wired or A2DP out).
         engine.connect(monitorMixer, to: engine.mainMixerNode, format: format)
 
         engine.prepare()
         try engine.start()
+        self.engine = engine
+        self.delay = delay
+        self.monitorMixer = monitorMixer
+    }
+
+    private func restart() {
+        do {
+            try start()
+        } catch {
+            stop()
+            lastError = "Audio stopped after a device change. Turn hear-yourself on again."
+        }
     }
 
     private func stop() {
-        engine.stop()
+        engine?.stop()
+        engine = nil
+        delay = nil
+        monitorMixer = nil
         isHearingYourself = false
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     // MARK: - Microphone
 
-    /// Routes input to the chosen mic, or in automatic mode to a wired/USB mic
-    /// if present, else the iPhone mic — never Bluetooth unless chosen.
+    /// Routes input to the chosen mic, or in automatic mode to the iPhone mic:
+    /// full quality and no extra latency (headset and USB mics can add both).
     private func applyPreferredInput() {
         let inputs = session.availableInputs ?? []
         let chosen = inputs.first { $0.uid == selectedMicrophoneID }
-            ?? inputs.first { [.headsetMic, .usbAudio].contains($0.portType) }
             ?? inputs.first { $0.portType == .builtInMic }
         if let chosen, session.preferredInput?.uid != chosen.uid {
             try? session.setPreferredInput(chosen)
@@ -213,14 +233,18 @@ final class AudioEngine {
         }
 
         // The engine stops itself when the hardware format changes (e.g. a new
-        // route); restart it if hear-yourself should still be on.
-        center.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.engineConfigurationChanged() }
+        // route); rebuild it if hear-yourself should still be on.
+        center.addObserver(forName: .AVAudioEngineConfigurationChange, object: nil, queue: .main) { [weak self] note in
+            let changed = (note.object as AnyObject?).map(ObjectIdentifier.init)
+            MainActor.assumeIsolated {
+                guard let self, let engine = self.engine, changed == ObjectIdentifier(engine) else { return }
+                self.engineConfigurationChanged()
+            }
         }
     }
 
     private func routeChanged() {
-        // A newly connected wired/USB mic or a returning chosen mic should take over.
+        // A chosen mic that reconnects should take over again.
         applyPreferredInput()
         refreshRoute()
         if isHearingYourself && !headphonesConnected {
@@ -231,12 +255,7 @@ final class AudioEngine {
 
     private func engineConfigurationChanged() {
         guard isHearingYourself, headphonesConnected else { return }
-        do {
-            try start()
-        } catch {
-            stop()
-            lastError = "Audio stopped after a device change. Turn hear-yourself on again."
-        }
+        restart()
     }
 
     private static let bluetoothPorts: Set<AVAudioSession.Port> = [.bluetoothHFP, .bluetoothLE, .bluetoothA2DP]
