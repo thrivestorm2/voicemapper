@@ -37,7 +37,7 @@
 │ │ ╰───╯    │          │ │
 │ └──────────┴──────────┘ │
 │ Dark      Pitch-  Bright│
-│ [🎧 Hear self] [History]│
+│ [🎧 Listen] [History]│
 │ [Heat map ▾ Today]      │
 │ Weight: light ──●── heavy│
 │ Health: ● good          │

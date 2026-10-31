@@ -22,7 +22,7 @@ struct LiveView: View {
                     Button {
                         Task { await audio.setListening(!audio.isListening) }
                     } label: {
-                        Label(audio.isListening ? "Stop" : "Listen",
+                        Label(audio.isListening ? "Stop" : "Speak",
                               systemImage: audio.isListening ? "mic.fill" : "mic")
                     }
                     .buttonStyle(.bordered)
@@ -32,7 +32,7 @@ struct LiveView: View {
                     Button {
                         showingHearYourself = true
                     } label: {
-                        Label("Hear self", systemImage: audio.isHearingYourself ? "headphones.circle.fill" : "headphones")
+                        Label("Listen", systemImage: audio.isHearingYourself ? "headphones.circle.fill" : "headphones")
                     }
                     .buttonStyle(.bordered)
                     .tint(audio.isHearingYourself ? .accentColor : .secondary)
@@ -74,7 +74,7 @@ private struct PitchLabel: View {
                 Text("–")
                     .font(.system(size: 64, weight: .semibold, design: .rounded))
                     .foregroundStyle(.tertiary)
-                Text(isListening ? "Say or hum a note" : "Tap Listen to start")
+                Text(isListening ? "Say or hum a note" : "Tap Speak to start")
                     .font(.title3)
                     .foregroundStyle(.secondary)
             }
