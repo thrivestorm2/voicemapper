@@ -37,7 +37,7 @@ SwiftUI · AVAudioEngine · Accelerate/vDSP · Swift Charts · SwiftData
 | S1 | Setup | Xcode project, app structure, tab bar with empty screens | App opens, tabs switch | done |
 | S2 | Audio | Engine, mic permission, hear-yourself toggle, volume cap, delay slider | Hear yourself in headphones | done |
 | S3 | Bluetooth | Route monitoring, "wired recommended" banner, headphones-only lock | Banner appears with AirPods | done |
-| S4 | Pitch | Pitch detection + note label | Correct note when humming | todo |
+| S4 | Pitch | Pitch detection + note label | Correct note when humming | done |
 | S5 | Range table | Colour-coded range table, current note highlighted | Highlight follows voice | todo |
 | S6 | Resonance | Formant analysis + resonance score | "ee" vs "oo" changes score | todo |
 | S7 | Grid | Grid view, gender zones, live dot + trail | Dot moves as expected | todo |
