@@ -26,6 +26,9 @@ final class AudioEngine {
     private(set) var headphonesConnected = false
     private(set) var microphones: [Microphone] = []
     private(set) var activeMicrophoneName: String?
+    /// Mic-to-ear delay iOS reports for the current route (hardware + buffers),
+    /// excluding the delay slider. Nil when hear-yourself is off.
+    private(set) var deviceLatencyMs: Double?
     private(set) var lastError: String?
 
     var volume: Float {
@@ -157,6 +160,17 @@ final class AudioEngine {
         self.engine = engine
         self.delay = delay
         self.monitorMixer = monitorMixer
+        updateLatency()
+    }
+
+    private func updateLatency() {
+        guard engine != nil else {
+            deviceLatencyMs = nil
+            return
+        }
+        // One IO buffer on the way in, one on the way out.
+        let seconds = session.inputLatency + session.outputLatency + 2 * session.ioBufferDuration
+        deviceLatencyMs = seconds * 1000
     }
 
     private func restart() {
@@ -174,6 +188,7 @@ final class AudioEngine {
         delay = nil
         monitorMixer = nil
         isHearingYourself = false
+        deviceLatencyMs = nil
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
     }
 
@@ -247,6 +262,7 @@ final class AudioEngine {
         // A chosen mic that reconnects should take over again.
         applyPreferredInput()
         refreshRoute()
+        updateLatency()
         if isHearingYourself && !headphonesConnected {
             stop()
             lastError = "Headphones disconnected, so hear-yourself was turned off."

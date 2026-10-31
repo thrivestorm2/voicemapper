@@ -51,6 +51,12 @@ struct HearYourselfSheet: View {
                         LabeledContent("Using", value: active)
                             .foregroundStyle(.secondary)
                     }
+                    if let latency = audio.deviceLatencyMs {
+                        LabeledContent("Device delay") {
+                            Text("\(Int(latency.rounded())) ms").monospacedDigit()
+                        }
+                        .foregroundStyle(.secondary)
+                    }
                 } footer: {
                     VStack(alignment: .leading, spacing: 6) {
                         if audio.microphones.contains(where: { $0.id == audio.selectedMicrophoneID && $0.isBluetooth }) {
