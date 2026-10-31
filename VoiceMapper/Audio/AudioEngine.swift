@@ -16,8 +16,9 @@ final class AudioEngine {
         let isBluetooth: Bool
     }
 
-    /// Mixer level above which the volume slider shows a safe-listening warning.
-    static let safeVolumeCap: Float = 0.6
+    /// System (headphone) volume above which a safe-listening warning shows.
+    static let safeVolumeCap: Float = 0.75
+    static let defaultVoiceLevel: Float = 0.7
     /// Longest delay offered for delayed-feedback drills.
     static let maxDelayMs: Double = 500
 
@@ -30,11 +31,20 @@ final class AudioEngine {
     /// excluding the delay slider. Nil when hear-yourself is off.
     private(set) var deviceLatencyMs: Double?
     private(set) var lastError: String?
+    /// iOS output volume (0–1): what the headphones' own buttons or Digital
+    /// Crown change. Apps can't set it directly; the sheet embeds the system
+    /// volume slider for that.
+    private(set) var systemVolume: Float
 
-    var volume: Float {
+    /// How loud your voice is in the mix. Remembered per mic, because mics
+    /// pick up the voice at different levels.
+    var voiceLevel: Float {
         didSet {
-            monitorMixer?.outputVolume = volume
-            UserDefaults.standard.set(volume, forKey: Keys.volume)
+            monitorMixer?.outputVolume = voiceLevel
+            if let voiceLevelMic {
+                voiceLevels[voiceLevelMic] = voiceLevel
+                UserDefaults.standard.set(voiceLevels, forKey: Keys.voiceLevels)
+            }
         }
     }
 
@@ -56,7 +66,7 @@ final class AudioEngine {
         }
     }
 
-    var isAboveSafeVolume: Bool { volume > Self.safeVolumeCap }
+    var isAboveSafeVolume: Bool { systemVolume > Self.safeVolumeCap }
 
     // Rebuilt on every start: after a hardware change (e.g. switching to a
     // Bluetooth mic, which changes the sample rate) a reused engine can keep
@@ -66,17 +76,23 @@ final class AudioEngine {
     private var monitorMixer: AVAudioMixerNode?
     /// The input and output ports the running engine was built for.
     private var engineRoute: String?
+    /// The mic whose voice level the slider currently edits.
+    private var voiceLevelMic: String?
+    private var voiceLevels: [String: Float]
+    private var volumeObservation: NSKeyValueObservation?
     private let session = AVAudioSession.sharedInstance()
 
     private enum Keys {
-        static let volume = "hearYourself.volume"
+        static let voiceLevels = "hearYourself.voiceLevels"
         static let delayMs = "hearYourself.delayMs"
         static let microphone = "audio.microphoneID"
     }
 
     init() {
         let defaults = UserDefaults.standard
-        volume = defaults.object(forKey: Keys.volume) as? Float ?? 0.4
+        voiceLevels = defaults.dictionary(forKey: Keys.voiceLevels) as? [String: Float] ?? [:]
+        voiceLevel = Self.defaultVoiceLevel
+        systemVolume = session.outputVolume
         delayMs = defaults.object(forKey: Keys.delayMs) as? Double ?? 0
         selectedMicrophoneID = defaults.string(forKey: Keys.microphone)
 
@@ -86,6 +102,10 @@ final class AudioEngine {
         try? configureSession()
         refreshRoute()
         observeSession()
+        volumeObservation = session.observe(\.outputVolume, options: [.new]) { @Sendable [weak self] session, _ in
+            let volume = session.outputVolume
+            Task { @MainActor in self?.systemVolume = volume }
+        }
     }
 
     // MARK: - Hear yourself
@@ -147,8 +167,10 @@ final class AudioEngine {
         delay.wetDryMix = 100
         delay.lowPassCutoff = 18_000
         delay.delayTime = delayMs / 1000
+        loadVoiceLevel()  // before building the mixer
+        systemVolume = session.outputVolume
         let monitorMixer = AVAudioMixerNode()
-        monitorMixer.outputVolume = volume
+        monitorMixer.outputVolume = voiceLevel
 
         engine.attach(delay)
         engine.attach(monitorMixer)
@@ -210,7 +232,15 @@ final class AudioEngine {
         }
     }
 
+    /// Switches the voice-level slider to the active mic's saved level.
+    private func loadVoiceLevel() {
+        guard let mic = session.currentRoute.inputs.first?.uid, mic != voiceLevelMic else { return }
+        voiceLevelMic = mic
+        voiceLevel = voiceLevels[mic] ?? Self.defaultVoiceLevel
+    }
+
     private func refreshRoute() {
+        loadVoiceLevel()
         let route = session.currentRoute
         headphonesConnected = Self.outputIsHeadphones(route)
         activeMicrophoneName = route.inputs.first?.portName
