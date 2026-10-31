@@ -24,6 +24,11 @@ final class AudioEngine {
 
     private(set) var micPermission: MicPermission = .undetermined
     private(set) var isHearingYourself = false
+    /// Mic capture for pitch analysis is on (the Listen button). Hear-yourself
+    /// also runs capture, so pitch updates in either case.
+    private(set) var isListening = false
+    /// Current smoothed pitch, or nil when silent or unvoiced.
+    private(set) var pitch: PitchReading?
     private(set) var headphonesConnected = false
     private(set) var microphones: [Microphone] = []
     private(set) var activeMicrophoneName: String?
@@ -46,7 +51,7 @@ final class AudioEngine {
     /// pick up the voice at different levels.
     var voiceLevel: Float {
         didSet {
-            monitorMixer?.outputVolume = voiceLevel
+            applyMonitorVolume()
             if let voiceLevelMic {
                 voiceLevels[voiceLevelMic] = voiceLevel
                 UserDefaults.standard.set(voiceLevels, forKey: Keys.voiceLevels)
@@ -135,28 +140,62 @@ final class AudioEngine {
     func setHearYourself(_ on: Bool) async {
         lastError = nil
         guard on else {
-            stop()
+            isHearingYourself = false
+            deviceLatencyMs = nil
+            applyMonitorVolume()
+            stopIfIdle()
             return
         }
-        guard await requestMicPermission() else { return }
+        guard await ensureRunning() else { return }
+        guard headphonesConnected else {
+            stopIfIdle()
+            lastError = "Connect headphones to hear yourself."
+            return
+        }
+        bluetoothBannerDismissed = false
+        isHearingYourself = true
+        applyMonitorVolume()
+        updateLatency()
+    }
+
+    /// Turns mic capture for pitch analysis on or off, without hearing yourself.
+    func setListening(_ on: Bool) async {
+        lastError = nil
+        guard on else {
+            isListening = false
+            stopIfIdle()
+            return
+        }
+        guard await ensureRunning() else { return }
+        isListening = true
+    }
+
+    /// Starts the engine if needed. False if it couldn't (error set).
+    private func ensureRunning() async -> Bool {
+        guard await requestMicPermission() else { return false }
         do {
             // Check the route only after the session is configured and active;
             // before that iOS may not report Bluetooth headphones.
             try configureSession()
             try session.setActive(true)
             refreshRoute()
-            guard headphonesConnected else {
-                stop()
-                lastError = "Connect headphones to hear yourself."
-                return
-            }
-            try start()
-            bluetoothBannerDismissed = false
-            isHearingYourself = true
+            if engine == nil { try start() }
+            return true
         } catch {
             stop()
             lastError = "Couldn't start audio: \(error.localizedDescription)"
+            return false
         }
+    }
+
+    /// The monitor path is always wired up so pitch capture and hear-yourself
+    /// share one engine; it is silent unless hear-yourself is on.
+    private func applyMonitorVolume() {
+        monitorMixer?.outputVolume = isHearingYourself ? voiceLevel : 0
+    }
+
+    private func stopIfIdle() {
+        if !isHearingYourself && !isListening { stop() }
     }
 
     private func configureSession() throws {
@@ -191,7 +230,7 @@ final class AudioEngine {
         loadVoiceLevel()  // before building the mixer
         systemVolume = session.outputVolume
         let monitorMixer = AVAudioMixerNode()
-        monitorMixer.outputVolume = voiceLevel
+        monitorMixer.outputVolume = isHearingYourself ? voiceLevel : 0
 
         engine.attach(delay)
         engine.attach(monitorMixer)
@@ -201,17 +240,29 @@ final class AudioEngine {
         // the input's (e.g. Bluetooth mic in, wired or A2DP out).
         engine.connect(monitorMixer, to: engine.mainMixerNode, format: format)
 
+        // Pitch tap. The closures are @Sendable and run on the audio thread.
+        let tracker = PitchTracker(sampleRate: format.sampleRate) { [weak self] reading in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.pitch = reading }
+            }
+        }
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+            guard let channel = buffer.floatChannelData?[0] else { return }
+            tracker.process(UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength)))
+        }
+
         engine.prepare()
         try engine.start()
         self.engine = engine
         self.delay = delay
         self.monitorMixer = monitorMixer
         engineRoute = Self.routeKey(session.currentRoute)
+        pitch = nil
         updateLatency()
     }
 
     private func updateLatency() {
-        guard engine != nil else {
+        guard engine != nil, isHearingYourself else {
             deviceLatencyMs = nil
             return
         }
@@ -225,17 +276,20 @@ final class AudioEngine {
             try start()
         } catch {
             stop()
-            lastError = "Audio stopped after a device change. Turn hear-yourself on again."
+            lastError = "Audio stopped after a device change. Turn it on again."
         }
     }
 
     private func stop() {
+        engine?.inputNode.removeTap(onBus: 0)
         engine?.stop()
         engine = nil
         delay = nil
         monitorMixer = nil
         engineRoute = nil
         isHearingYourself = false
+        isListening = false
+        pitch = nil
         deviceLatencyMs = nil
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
     }
@@ -326,10 +380,12 @@ final class AudioEngine {
         // A chosen mic that reconnects should take over again.
         applyPreferredInput()
         refreshRoute()
-        guard isHearingYourself else { return }
-        if !headphonesConnected {
-            stop()
+        guard engine != nil else { return }
+        if isHearingYourself, !headphonesConnected {
+            isHearingYourself = false
+            applyMonitorVolume()
             lastError = "Headphones disconnected, so hear-yourself was turned off."
+            if isListening { restart() } else { stop() }
         } else if Self.routeKey(session.currentRoute) != engineRoute {
             // A different mic or output: the engine's formats are now stale.
             restart()
@@ -339,7 +395,7 @@ final class AudioEngine {
     }
 
     private func engineConfigurationChanged() {
-        guard isHearingYourself, headphonesConnected else { return }
+        guard engine != nil, !isHearingYourself || headphonesConnected else { return }
         restart()
     }
 
