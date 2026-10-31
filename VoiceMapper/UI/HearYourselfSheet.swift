@@ -52,10 +52,13 @@ struct HearYourselfSheet: View {
                             .foregroundStyle(.secondary)
                     }
                 } footer: {
-                    if audio.microphones.contains(where: { $0.id == audio.selectedMicrophoneID && $0.isBluetooth }) {
-                        Text("Bluetooth mics record at lower quality and add delay, which makes pitch and resonance readings less accurate. The iPhone or a wired mic works best.")
-                    } else {
-                        Text("Automatic uses a wired or USB mic when one is connected, otherwise the iPhone's mic.")
+                    VStack(alignment: .leading, spacing: 6) {
+                        if audio.microphones.contains(where: { $0.id == audio.selectedMicrophoneID && $0.isBluetooth }) {
+                            Label("You've chosen a Bluetooth mic. Readings will be less accurate.", systemImage: "exclamationmark.triangle")
+                                .foregroundStyle(.orange)
+                        }
+                        Text("The iPhone mic is recommended. It records your voice at full quality with no wireless delay, so pitch and resonance readings are as accurate as possible. Bluetooth mics (like AirPods) compress your voice and cut detail that resonance depends on. A wired mic is also fine.")
+                        Text("Automatic uses a wired or USB mic when one is connected, otherwise the iPhone mic.")
                     }
                 }
 
