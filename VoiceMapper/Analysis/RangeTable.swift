@@ -62,11 +62,15 @@ struct RangeRow: Identifiable, Sendable {
 }
 
 enum RangeTable {
-    /// Every semitone from C2 to C6, highest first like a piano turned on its end.
-    static let rows: [RangeRow] = (36...84).reversed().map { RangeRow(note: Note(midi: $0)) }
+    /// Natural notes only (no sharps/flats) from E2 to C5, highest first, so the
+    /// whole table fits on one screen without scrolling.
+    static let rows: [RangeRow] = (40...72).reversed()
+        .map { Note(midi: $0) }
+        .filter { !$0.name.contains("♯") }
+        .map { RangeRow(note: $0) }
 
-    /// The row to highlight for a live reading, clamped to the table's ends.
+    /// The row nearest a live reading, clamped to the table's ends.
     static func rowID(for note: Note) -> Int {
-        min(max(note.midi, 36), 84)
+        rows.min { abs($0.id - note.midi) < abs($1.id - note.midi) }!.id
     }
 }

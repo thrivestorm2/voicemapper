@@ -10,27 +10,21 @@ struct RangeTableView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollViewReader { proxy in
-                List {
-                    Section {
-                        ForEach(RangeTable.rows) { row in
-                            RangeRowView(row: row, isCurrent: row.id == currentID)
-                                .id(row.id)
-                                .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
-                                .listRowBackground(row.id == currentID ? Color.accentColor.opacity(0.15) : nil)
-                        }
-                    } header: {
-                        HeaderRow()
-                    }
-                    Section {
-                        Legend()
-                    }
+            // Rows share the height equally, so the table never scrolls.
+            VStack(spacing: 0) {
+                HeaderRow()
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
+                ForEach(RangeTable.rows) { row in
+                    RangeRowView(row: row, isCurrent: row.id == currentID)
+                        .padding(.horizontal, 16)
+                        .frame(maxHeight: .infinity)
+                        .background(row.id == currentID ? Color.accentColor.opacity(0.2) : .clear)
                 }
-                .listStyle(.plain)
-                .onChange(of: currentID) { _, id in
-                    guard let id else { return }
-                    withAnimation { proxy.scrollTo(id, anchor: .center) }
-                }
+                Divider()
+                Legend()
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 CurrentNote(reading: audio.pitch, isListening: audio.isListening || audio.isHearingYourself)
@@ -111,7 +105,6 @@ private struct RangeRowView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(row.note.name), \(Int(row.frequency.rounded())) hertz, \(row.voiceType.rawValue), \(row.perceived.meaning)")
         .accessibilityAddTraits(isCurrent ? .isSelected : [])
@@ -133,7 +126,7 @@ private struct ZoneSwatch: View {
         switch perceived {
         case .male: .blue
         case .ambiguous: .purple
-        case .female: .orange
+        case .female: .pink
         }
     }
 
@@ -148,7 +141,7 @@ private struct ZoneSwatch: View {
 
 private struct Legend: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             ForEach([PerceivedGender.female, .ambiguous, .male], id: \.letter) { zone in
                 HStack(spacing: 8) {
                     ZoneSwatch(perceived: zone)
