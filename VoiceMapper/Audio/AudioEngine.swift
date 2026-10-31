@@ -246,10 +246,7 @@ final class AudioEngine {
                 MainActor.assumeIsolated { self?.pitch = reading }
             }
         }
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
-            guard let channel = buffer.floatChannelData?[0] else { return }
-            tracker.process(UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength)))
-        }
+        Self.installPitchTap(on: input, format: format, tracker: tracker)
 
         engine.prepare()
         try engine.start()
@@ -259,6 +256,16 @@ final class AudioEngine {
         engineRoute = Self.routeKey(session.currentRoute)
         pitch = nil
         updateLatency()
+    }
+
+    /// Nonisolated on purpose: a closure written in this @MainActor class would
+    /// inherit main-actor isolation, and Swift 6 traps when AVAudioEngine calls
+    /// it on the audio thread.
+    private nonisolated static func installPitchTap(on input: AVAudioInputNode, format: AVAudioFormat, tracker: PitchTracker) {
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+            guard let channel = buffer.floatChannelData?[0] else { return }
+            tracker.process(UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength)))
+        }
     }
 
     private func updateLatency() {
