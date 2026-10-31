@@ -29,6 +29,8 @@ final class AudioEngine {
     private(set) var isListening = false
     /// Current smoothed pitch, or nil when silent or unvoiced.
     private(set) var pitch: PitchReading?
+    /// Current smoothed resonance, or nil when there's no steady voiced sound.
+    private(set) var resonance: ResonanceReading?
     private(set) var headphonesConnected = false
     private(set) var microphones: [Microphone] = []
     private(set) var activeMicrophoneName: String?
@@ -240,13 +242,18 @@ final class AudioEngine {
         // the input's (e.g. Bluetooth mic in, wired or A2DP out).
         engine.connect(monitorMixer, to: engine.mainMixerNode, format: format)
 
-        // Pitch tap. The closures are @Sendable and run on the audio thread.
-        let tracker = PitchTracker(sampleRate: format.sampleRate) { [weak self] reading in
+        // Analysis tap. The closures are @Sendable and run on the audio thread.
+        let pitchTracker = PitchTracker(sampleRate: format.sampleRate) { [weak self] reading in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated { self?.pitch = reading }
             }
         }
-        Self.installPitchTap(on: input, format: format, tracker: tracker)
+        let resonanceTracker = ResonanceTracker(sampleRate: format.sampleRate) { [weak self] reading in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.resonance = reading }
+            }
+        }
+        Self.installAnalysisTap(on: input, format: format, pitch: pitchTracker, resonance: resonanceTracker)
 
         engine.prepare()
         try engine.start()
@@ -255,16 +262,22 @@ final class AudioEngine {
         self.monitorMixer = monitorMixer
         engineRoute = Self.routeKey(session.currentRoute)
         pitch = nil
+        resonance = nil
         updateLatency()
     }
 
     /// Nonisolated on purpose: a closure written in this @MainActor class would
     /// inherit main-actor isolation, and Swift 6 traps when AVAudioEngine calls
     /// it on the audio thread.
-    private nonisolated static func installPitchTap(on input: AVAudioInputNode, format: AVAudioFormat, tracker: PitchTracker) {
+    private nonisolated static func installAnalysisTap(
+        on input: AVAudioInputNode, format: AVAudioFormat,
+        pitch: PitchTracker, resonance: ResonanceTracker
+    ) {
         input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             guard let channel = buffer.floatChannelData?[0] else { return }
-            tracker.process(UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength)))
+            let samples = UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength))
+            pitch.process(samples)
+            resonance.process(samples, pitch: pitch.currentFrequency)
         }
     }
 
@@ -297,6 +310,7 @@ final class AudioEngine {
         isHearingYourself = false
         isListening = false
         pitch = nil
+        resonance = nil
         deviceLatencyMs = nil
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
     }

@@ -23,6 +23,10 @@ final class PitchTracker: @unchecked Sendable {
     private var recent: [Double] = []
     private var unvoicedRun = 0
     private var hasReading = false
+    private var lastFrequency: Double?
+
+    /// Latest smoothed F0, nil while unvoiced. Audio thread only.
+    var currentFrequency: Double? { hasReading ? lastFrequency : nil }
 
     init(sampleRate: Double, onReading: @escaping @Sendable (PitchReading?) -> Void) {
         detector = PitchDetector(sampleRate: sampleRate)
@@ -54,6 +58,7 @@ final class PitchTracker: @unchecked Sendable {
         if recent.count > Self.medianCount { recent.removeFirst() }
         let median = recent.sorted()[recent.count / 2]
         hasReading = true
+        lastFrequency = median
         onReading(PitchReading(frequency: median, note: Note(frequency: median)))
     }
 }

@@ -4,6 +4,8 @@ struct LiveView: View {
     @Environment(AudioEngine.self) private var audio
     @State private var showingHearYourself = false
 
+    private var isCapturing: Bool { audio.isListening || audio.isHearingYourself }
+
     var body: some View {
         NavigationStack {
             // Overlay rather than stack the controls so the placeholder stays
@@ -14,8 +16,12 @@ struct LiveView: View {
                 description: Text("Your pitch and resonance grid will appear here.")
             )
             .overlay(alignment: .top) {
-                PitchLabel(reading: audio.pitch, isListening: audio.isListening || audio.isHearingYourself)
-                    .padding(.top, 8)
+                VStack(spacing: 20) {
+                    PitchLabel(reading: audio.pitch, isListening: isCapturing)
+                    ResonanceMeter(reading: audio.resonance, isListening: isCapturing)
+                        .padding(.horizontal, 24)
+                }
+                .padding(.top, 8)
             }
             .overlay(alignment: .bottom) {
                 HStack {
