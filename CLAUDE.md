@@ -11,6 +11,7 @@ Full approved plan: `docs/PLAN.md`. Approved screen wireframes: `docs/WIREFRAMES
 - Development happens on the user's Mac. Claude builds locally for the simulator and fixes errors before handing off:
   `xcodebuild -project VoiceMapper.xcodeproj -scheme VoiceMapper -destination 'platform=iOS Simulator,name=iPhone 18 Pro' build`
   It can also launch the app and screenshot it with `xcrun simctl`. Device tests (mic, headphones, Bluetooth, Face ID) still need the user's iPhone.
+- The iPhone gets builds through TestFlight (internal testing), not by cable — the user doesn't want Developer Mode on. To ship a build: bump `CURRENT_PROJECT_VERSION`, then `xcodebuild ... -configuration Release -destination 'generic/platform=iOS' -archivePath <path> -allowProvisioningUpdates archive`, then `xcodebuild -exportArchive` with an ExportOptions.plist (`method` app-store-connect, `destination` upload, `teamID` R6PF4UF778).
 - Commit + push at the end of every session, then update the status column below.
 - Use Sonnet for routine UI sessions; Opus for DSP sessions (S3, S5, S6, S10).
 
