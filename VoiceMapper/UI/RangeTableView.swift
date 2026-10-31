@@ -22,7 +22,9 @@ struct RangeTableView: View {
                         .background(row.id == currentID ? Color.accentColor.opacity(0.2) : .clear)
                 }
                 Divider()
-                Legend()
+                Legend(isListening: audio.isListening) {
+                    Task { await audio.setListening(!audio.isListening) }
+                }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
             }
@@ -31,20 +33,6 @@ struct RangeTableView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
                     .background(.bar)
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                Button {
-                    Task { await audio.setListening(!audio.isListening) }
-                } label: {
-                    Label(audio.isListening ? "Stop" : "Speak",
-                          systemImage: audio.isListening ? "mic.fill" : "mic")
-                }
-                .buttonStyle(.bordered)
-                .tint(audio.isListening ? .accentColor : .secondary)
-                .accessibilityValue(audio.isListening ? "On" : "Off")
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity)
-                .background(.bar)
             }
             .navigationTitle("Range")
             .navigationBarTitleDisplayMode(.inline)
@@ -134,13 +122,28 @@ private struct ZoneSwatch: View {
 }
 
 private struct Legend: View {
+    let isListening: Bool
+    let toggleListening: () -> Void
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            ForEach([PerceivedGender.female, .ambiguous, .male], id: \.letter) { zone in
-                HStack(spacing: 8) {
-                    ZoneSwatch(perceived: zone, strength: 1)
-                    Text("\(zone.letter) – \(zone.meaning)")
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach([PerceivedGender.female, .ambiguous, .male], id: \.letter) { zone in
+                        HStack(spacing: 8) {
+                            ZoneSwatch(perceived: zone, strength: 1)
+                            Text("\(zone.letter) – \(zone.meaning)")
+                        }
+                    }
                 }
+                Spacer()
+                Button(action: toggleListening) {
+                    Label(isListening ? "Stop" : "Speak",
+                          systemImage: isListening ? "mic.fill" : "mic")
+                }
+                .buttonStyle(.bordered)
+                .tint(isListening ? .accentColor : .secondary)
+                .accessibilityValue(isListening ? "On" : "Off")
             }
             Label("Resonance matters too. These are typical speaking ranges, not rules.",
                   systemImage: "info.circle")
