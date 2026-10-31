@@ -35,4 +35,5 @@ struct RootTabView: View {
 
 #Preview {
     RootTabView()
+        .environment(AudioEngine())
 }
