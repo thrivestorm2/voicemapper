@@ -100,7 +100,7 @@ private struct RangeRowView: View {
                 .padding(.leading, 12)
                 .foregroundStyle(.secondary)
             HStack(spacing: 8) {
-                ZoneSwatch(perceived: row.perceived)
+                ZoneSwatch(perceived: row.perceived, strength: row.commonness)
                 Text(row.perceived.letter).font(.body.weight(.semibold))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -111,13 +111,15 @@ private struct RangeRowView: View {
     }
 }
 
-/// Bar whose fill density differs by zone as well as colour, for colour-blind users.
+/// Bar tinted by zone; the fill is strongest at the zone's most common pitch,
+/// so density is a cue as well as colour.
 private struct ZoneSwatch: View {
     let perceived: PerceivedGender
+    let strength: Double
 
     var body: some View {
         RoundedRectangle(cornerRadius: 3)
-            .fill(color.opacity(opacity))
+            .fill(color.opacity(strength))
             .overlay(RoundedRectangle(cornerRadius: 3).stroke(color, lineWidth: 1))
             .frame(width: 40, height: 14)
     }
@@ -126,15 +128,7 @@ private struct ZoneSwatch: View {
         switch perceived {
         case .male: .blue
         case .ambiguous: .purple
-        case .female: .pink
-        }
-    }
-
-    private var opacity: Double {
-        switch perceived {
-        case .male: 0.25
-        case .ambiguous: 0.6
-        case .female: 1.0
+        case .female: Color(red: 1.0, green: 0.45, blue: 0.75)
         }
     }
 }
@@ -144,7 +138,7 @@ private struct Legend: View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach([PerceivedGender.female, .ambiguous, .male], id: \.letter) { zone in
                 HStack(spacing: 8) {
-                    ZoneSwatch(perceived: zone)
+                    ZoneSwatch(perceived: zone, strength: 1)
                     Text("\(zone.letter) – \(zone.meaning)")
                 }
             }

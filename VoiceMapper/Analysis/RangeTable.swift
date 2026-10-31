@@ -23,6 +23,22 @@ enum PerceivedGender: Sendable {
         }
     }
 
+    /// Most common speaking F0 for the zone (Hz), where its colour is strongest.
+    var typicalFrequency: Double {
+        switch self {
+        case .male: 120
+        case .ambiguous: 160
+        case .female: 210
+        }
+    }
+
+    /// 0.2–1: how typical a pitch is within the zone, fading with distance in
+    /// semitones from the most common speaking pitch.
+    func commonness(at frequency: Double) -> Double {
+        let semitones = 12 * log2(frequency / typicalFrequency)
+        return max(0.2, exp(-semitones * semitones / (2 * 3 * 3)))
+    }
+
     init(frequency: Double) {
         switch frequency {
         case ..<145: self = .male
@@ -59,6 +75,7 @@ struct RangeRow: Identifiable, Sendable {
     var frequency: Double { note.frequency }
     var voiceType: VoiceType { VoiceType(midi: note.midi) }
     var perceived: PerceivedGender { PerceivedGender(frequency: note.frequency) }
+    var commonness: Double { perceived.commonness(at: note.frequency) }
 }
 
 enum RangeTable {
