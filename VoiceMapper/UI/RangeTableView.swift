@@ -59,12 +59,27 @@ private struct CurrentNote: View {
 }
 
 private struct HeaderRow: View {
+    @State private var showingInfo = false
+
     var body: some View {
         HStack {
             Text("Note").frame(width: 56, alignment: .leading)
             Text("Hz").frame(width: 48, alignment: .trailing)
             Text("Voice").frame(width: 64, alignment: .leading).padding(.leading, 12)
             Text("Read").frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                showingInfo = true
+            } label: {
+                Image(systemName: "info.circle")
+            }
+            .accessibilityLabel("About this table")
+            .popover(isPresented: $showingInfo) {
+                Text("Resonance matters too. These are typical speaking ranges, not rules.")
+                    .font(.subheadline)
+                    .padding()
+                    .frame(width: 260)
+                    .presentationCompactAdaptation(.popover)
+            }
         }
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
@@ -145,10 +160,6 @@ private struct Legend: View {
                 .tint(isListening ? .accentColor : .secondary)
                 .accessibilityValue(isListening ? "On" : "Off")
             }
-            Label("Resonance matters too. These are typical speaking ranges, not rules.",
-                  systemImage: "info.circle")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
         }
         .font(.subheadline)
     }
