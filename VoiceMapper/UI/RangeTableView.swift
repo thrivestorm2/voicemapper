@@ -2,6 +2,25 @@ import SwiftUI
 
 struct RangeTableView: View {
     @Environment(AudioEngine.self) private var audio
+    @AppStorage(GoalRange.lowKey) private var goalLow = 0
+    @AppStorage(GoalRange.highKey) private var goalHigh = 0
+
+    private var goal: GoalRange? { GoalRange(low: goalLow, high: goalHigh) }
+
+    /// First tap sets a one-note goal, a second tap on another row stretches it
+    /// to a range, tapping the lone note again clears it, and any tap on an
+    /// existing range starts over.
+    private func tap(_ midi: Int) {
+        if let goal, goal.low == goal.high {
+            if midi == goal.low {
+                goalLow = 0; goalHigh = 0
+            } else {
+                goalLow = min(midi, goal.low); goalHigh = max(midi, goal.low)
+            }
+        } else {
+            goalLow = midi; goalHigh = midi
+        }
+    }
 
     /// Row of the note being sung, nil when silent.
     private var currentID: Int? {
@@ -19,7 +38,16 @@ struct RangeTableView: View {
                     RangeRowView(row: row, isCurrent: row.id == currentID)
                         .padding(.horizontal, 16)
                         .frame(maxHeight: .infinity)
-                        .background(row.id == currentID ? Color.accentColor.opacity(0.2) : .clear)
+                        .background {
+                            ZStack {
+                                if goal?.contains(midi: row.id) == true { Color.teal.opacity(0.18) }
+                                if row.id == currentID { Color.accentColor.opacity(0.2) }
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture { tap(row.id) }
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityHint("Sets your goal range")
                 }
                 Divider()
                 Legend(isListening: audio.isListening) {
@@ -74,10 +102,10 @@ private struct HeaderRow: View {
             }
             .accessibilityLabel("About this table")
             .popover(isPresented: $showingInfo) {
-                Text("Resonance matters too. These are typical speaking ranges, not rules.")
+                Text("Tap a note to set your goal, then another to stretch it into a range. Tap the single note again to clear.\n\nResonance matters too. These are typical speaking ranges, not rules.")
                     .font(.subheadline)
                     .padding()
-                    .frame(width: 260)
+                    .frame(width: 280)
                     .presentationCompactAdaptation(.popover)
             }
         }
