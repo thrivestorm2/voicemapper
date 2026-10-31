@@ -18,11 +18,11 @@ struct GoalRange: Equatable, Sendable {
 
     func contains(midi: Int) -> Bool { (low...high).contains(midi) }
 
-    /// 0.25–1: 1 inside the range, fading with distance in semitones outside it.
+    /// 0–1: 1 inside the range, falling linearly to 0 at 6 semitones outside it.
     func closeness(of frequency: Double) -> Double {
         let midi = Note.midiValue(frequency: frequency)
         let distance = max(Double(low) - midi, midi - Double(high), 0)
-        return max(0.25, 1 - distance / 8)
+        return max(0, 1 - distance / 6)
     }
 
     /// Which way to move to reach the range; nil when inside it.

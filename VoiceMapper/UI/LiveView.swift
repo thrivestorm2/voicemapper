@@ -93,12 +93,13 @@ private struct PitchLabel: View {
 }
 
 extension PitchLabel {
-    /// Fades from plain text towards bright green as the pitch nears the goal
-    /// range; the caption below says the same in words.
+    /// Red when far from the goal range through yellow to green inside it; the
+    /// caption below says the same in words.
     fileprivate func noteColor(for reading: PitchReading) -> Color {
         guard let goal = GoalRange(low: goalLow, high: goalHigh) else { return .primary }
         let closeness = goal.closeness(of: reading.frequency)
-        return Color.green.opacity(closeness)
+        // Hue 0 is red, 1/3 is green.
+        return Color(hue: closeness / 3, saturation: 0.85, brightness: 0.85)
     }
 
     fileprivate func goalCaption(_ direction: GoalRange.Direction?) -> String {
