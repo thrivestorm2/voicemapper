@@ -1,15 +1,170 @@
 import SwiftUI
 
 struct RangeTableView: View {
+    @Environment(AudioEngine.self) private var audio
+
+    /// Row of the note being sung, nil when silent.
+    private var currentID: Int? {
+        audio.pitch.map { RangeTable.rowID(for: $0.note) }
+    }
+
     var body: some View {
-        PlaceholderScreen(
-            title: "Range",
-            systemImage: "music.note.list",
-            description: "The colour-coded vocal range table will appear here."
-        )
+        NavigationStack {
+            ScrollViewReader { proxy in
+                List {
+                    Section {
+                        ForEach(RangeTable.rows) { row in
+                            RangeRowView(row: row, isCurrent: row.id == currentID)
+                                .id(row.id)
+                                .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
+                                .listRowBackground(row.id == currentID ? Color.accentColor.opacity(0.15) : nil)
+                        }
+                    } header: {
+                        HeaderRow()
+                    }
+                    Section {
+                        Legend()
+                    }
+                }
+                .listStyle(.plain)
+                .onChange(of: currentID) { _, id in
+                    guard let id else { return }
+                    withAnimation { proxy.scrollTo(id, anchor: .center) }
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                CurrentNote(reading: audio.pitch, isListening: audio.isListening || audio.isHearingYourself)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(.bar)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Button {
+                    Task { await audio.setListening(!audio.isListening) }
+                } label: {
+                    Label(audio.isListening ? "Stop" : "Speak",
+                          systemImage: audio.isListening ? "mic.fill" : "mic")
+                }
+                .buttonStyle(.bordered)
+                .tint(audio.isListening ? .accentColor : .secondary)
+                .accessibilityValue(audio.isListening ? "On" : "Off")
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .background(.bar)
+            }
+            .navigationTitle("Range")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+private struct CurrentNote: View {
+    let reading: PitchReading?
+    let isListening: Bool
+
+    var body: some View {
+        Group {
+            if let reading {
+                Text("\(reading.note.name)   \(Int(reading.frequency.rounded())) Hz")
+            } else {
+                Text(isListening ? "Say or hum a note" : "Tap Speak to start")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.title2.weight(.semibold))
+        .monospacedDigit()
+    }
+}
+
+private struct HeaderRow: View {
+    var body: some View {
+        HStack {
+            Text("Note").frame(width: 56, alignment: .leading)
+            Text("Hz").frame(width: 48, alignment: .trailing)
+            Text("Voice").frame(width: 64, alignment: .leading).padding(.leading, 12)
+            Text("Read").frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+    }
+}
+
+private struct RangeRowView: View {
+    let row: RangeRow
+    let isCurrent: Bool
+
+    var body: some View {
+        HStack {
+            Text(row.note.name)
+                .font(.body.weight(isCurrent ? .bold : .regular))
+                .frame(width: 56, alignment: .leading)
+            Text("\(Int(row.frequency.rounded()))")
+                .frame(width: 48, alignment: .trailing)
+                .monospacedDigit()
+            Text(row.voiceType.rawValue)
+                .frame(width: 64, alignment: .leading)
+                .padding(.leading, 12)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                ZoneSwatch(perceived: row.perceived)
+                Text(row.perceived.letter).font(.body.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(row.note.name), \(Int(row.frequency.rounded())) hertz, \(row.voiceType.rawValue), \(row.perceived.meaning)")
+        .accessibilityAddTraits(isCurrent ? .isSelected : [])
+    }
+}
+
+/// Bar whose fill density differs by zone as well as colour, for colour-blind users.
+private struct ZoneSwatch: View {
+    let perceived: PerceivedGender
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 3)
+            .fill(color.opacity(opacity))
+            .overlay(RoundedRectangle(cornerRadius: 3).stroke(color, lineWidth: 1))
+            .frame(width: 40, height: 14)
+    }
+
+    private var color: Color {
+        switch perceived {
+        case .male: .blue
+        case .ambiguous: .purple
+        case .female: .orange
+        }
+    }
+
+    private var opacity: Double {
+        switch perceived {
+        case .male: 0.25
+        case .ambiguous: 0.6
+        case .female: 1.0
+        }
+    }
+}
+
+private struct Legend: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach([PerceivedGender.female, .ambiguous, .male], id: \.letter) { zone in
+                HStack(spacing: 8) {
+                    ZoneSwatch(perceived: zone)
+                    Text("\(zone.letter) – \(zone.meaning)")
+                }
+            }
+            Label("Resonance matters too. These are typical speaking ranges, not rules.",
+                  systemImage: "info.circle")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .font(.subheadline)
     }
 }
 
 #Preview {
     RangeTableView()
+        .environment(AudioEngine())
 }
