@@ -27,6 +27,12 @@ final class AudioEngine {
     private(set) var headphonesConnected = false
     private(set) var microphones: [Microphone] = []
     private(set) var activeMicrophoneName: String?
+    /// Name of the current output, e.g. "AirPods Pro" or "Headphones".
+    private(set) var outputName: String?
+    private(set) var outputIsBluetooth = false
+    /// Set when the user closes the Bluetooth banner; cleared on every output
+    /// change and each time hear-yourself turns on, so it is never hidden for good.
+    private(set) var bluetoothBannerDismissed = false
     /// Mic-to-ear delay iOS reports for the current route (hardware + buffers),
     /// excluding the delay slider. Nil when hear-yourself is off.
     private(set) var deviceLatencyMs: Double?
@@ -68,6 +74,16 @@ final class AudioEngine {
 
     var isAboveSafeVolume: Bool { systemVolume > Self.safeVolumeCap }
 
+    /// "Wired headphones recommended" banner: Bluetooth output adds
+    /// ~150–250 ms delay. See docs/PLAN.md §1a.
+    var showsBluetoothBanner: Bool {
+        isHearingYourself && outputIsBluetooth && !bluetoothBannerDismissed
+    }
+
+    func dismissBluetoothBanner() {
+        bluetoothBannerDismissed = true
+    }
+
     // Rebuilt on every start: after a hardware change (e.g. switching to a
     // Bluetooth mic, which changes the sample rate) a reused engine can keep
     // stale formats and go silent.
@@ -79,6 +95,8 @@ final class AudioEngine {
     /// The mic whose voice level the slider currently edits.
     private var voiceLevelMic: String?
     private var voiceLevels: [String: Float]
+    /// The outputs last seen, to notice output changes for the banner.
+    private var outputUIDs: [String] = []
     private var volumeObservation: NSKeyValueObservation?
     private let session = AVAudioSession.sharedInstance()
 
@@ -131,6 +149,7 @@ final class AudioEngine {
                 return
             }
             try start()
+            bluetoothBannerDismissed = false
             isHearingYourself = true
         } catch {
             stop()
@@ -244,6 +263,13 @@ final class AudioEngine {
         let route = session.currentRoute
         headphonesConnected = Self.outputIsHeadphones(route)
         activeMicrophoneName = route.inputs.first?.portName
+        let outputs = route.outputs.map(\.uid)
+        if outputs != outputUIDs {
+            outputUIDs = outputs
+            bluetoothBannerDismissed = false
+        }
+        outputName = route.outputs.first?.portName
+        outputIsBluetooth = route.outputs.contains { Self.bluetoothPorts.contains($0.portType) }
         microphones = (session.availableInputs ?? []).map {
             Microphone(id: $0.uid, name: $0.portName, isBluetooth: Self.bluetoothPorts.contains($0.portType))
         }

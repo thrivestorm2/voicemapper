@@ -35,6 +35,25 @@ struct HearYourselfSheet: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    if let output = audio.outputName, audio.headphonesConnected {
+                        LabeledContent("Route") {
+                            HStack(spacing: 4) {
+                                Text(audio.outputIsBluetooth ? "\(output) (Bluetooth)" : output)
+                                if audio.outputIsBluetooth {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
+                        if audio.outputIsBluetooth {
+                            Label("Wired headphones recommended: Bluetooth adds ~150–250 ms delay.",
+                                  systemImage: "cable.connector")
+                                .font(.footnote)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+
                     if let error = audio.lastError {
                         Label(error, systemImage: "exclamationmark.triangle")
                             .font(.footnote)
