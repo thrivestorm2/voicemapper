@@ -62,9 +62,9 @@ struct RangeRow: Identifiable, Sendable {
 }
 
 enum RangeTable {
-    /// Natural notes only (no sharps/flats) from E2 to C5, highest first, so the
+    /// Natural notes only (no sharps/flats) from E2 (82 Hz) to G4 (392 Hz), the span of speaking pitch, highest first, so the
     /// whole table fits on one screen without scrolling.
-    static let rows: [RangeRow] = (40...72).reversed()
+    static let rows: [RangeRow] = (40...67).reversed()
         .map { Note(midi: $0) }
         .filter { !$0.name.contains("♯") }
         .map { RangeRow(note: $0) }
