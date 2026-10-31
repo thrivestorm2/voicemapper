@@ -59,6 +59,8 @@ struct LiveView: View {
 
 /// Note name and frequency, e.g. "G4  196 Hz". No needle or cents, by design.
 private struct PitchLabel: View {
+    @AppStorage(GoalRange.lowKey) private var goalLow = 0
+    @AppStorage(GoalRange.highKey) private var goalHigh = 0
     let reading: PitchReading?
     let isListening: Bool
 
@@ -67,9 +69,15 @@ private struct PitchLabel: View {
             if let reading {
                 Text(reading.note.name)
                     .font(.system(size: 64, weight: .semibold, design: .rounded))
+                    .foregroundStyle(noteColor(for: reading))
                 Text("\(Int(reading.frequency.rounded())) Hz")
                     .font(.title3)
                     .foregroundStyle(.secondary)
+                if let goal = GoalRange(low: goalLow, high: goalHigh) {
+                    Text(goalCaption(goal.direction(of: reading.frequency)))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 Text("–")
                     .font(.system(size: 64, weight: .semibold, design: .rounded))
@@ -81,6 +89,25 @@ private struct PitchLabel: View {
         }
         .monospacedDigit()
         .accessibilityElement(children: .combine)
+    }
+}
+
+extension PitchLabel {
+    /// Red when far from the goal range through yellow to green inside it; the
+    /// caption below says the same in words.
+    fileprivate func noteColor(for reading: PitchReading) -> Color {
+        guard let goal = GoalRange(low: goalLow, high: goalHigh) else { return .primary }
+        let closeness = goal.closeness(of: reading.frequency)
+        // Hue 0 is red, 1/3 is green.
+        return Color(hue: closeness / 3, saturation: 0.85, brightness: 0.85)
+    }
+
+    fileprivate func goalCaption(_ direction: GoalRange.Direction?) -> String {
+        switch direction {
+        case nil: "In your goal range"
+        case .higher: "Goal is higher"
+        case .lower: "Goal is lower"
+        }
     }
 }
 
