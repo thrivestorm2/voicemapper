@@ -24,6 +24,14 @@ struct LiveView: View {
                 .accessibilityValue(audio.isHearingYourself ? "On" : "Off")
                 .padding()
             }
+            .safeAreaInset(edge: .top) {
+                if audio.showsBluetoothBanner {
+                    BluetoothBanner { audio.dismissBluetoothBanner() }
+                        .padding(.horizontal)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.default, value: audio.showsBluetoothBanner)
             .navigationTitle("Live")
             .sheet(isPresented: $showingHearYourself) {
                 HearYourselfSheet()
