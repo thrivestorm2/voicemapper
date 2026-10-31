@@ -73,11 +73,19 @@ struct HearYourselfSheet: View {
                             .foregroundStyle(.secondary)
                     }
                     if let latency = audio.deviceLatencyMs {
-                        let level = DelayLevel(ms: latency)
+                        let level = DelayLevel(ms: latency, bluetooth: audio.outputIsBluetooth)
                         LabeledContent {
-                            HStack(spacing: 6) {
-                                Circle().fill(level.color).frame(width: 8, height: 8)
-                                Text("\(level.label) · \(Int(latency.rounded())) ms").monospacedDigit()
+                            VStack(alignment: .trailing, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Circle().fill(level.color).frame(width: 8, height: 8)
+                                    Text("\(level.label) · \(Int(latency.rounded())) ms").monospacedDigit()
+                                }
+                                // iOS can't see the Bluetooth codec and headphone
+                                // buffering, so the reported figure leaves it out.
+                                if audio.outputIsBluetooth {
+                                    Text("+ Bluetooth (~150–250 ms)")
+                                        .font(.caption)
+                                }
                             }
                         } label: {
                             HStack(spacing: 4) {
@@ -162,8 +170,8 @@ struct HearYourselfSheet: View {
 private enum DelayLevel {
     case low, noticeable, high
 
-    init(ms: Double) {
-        self = ms <= 30 ? .low : ms <= 80 ? .noticeable : .high
+    init(ms: Double, bluetooth: Bool) {
+        self = bluetooth || ms > 80 ? .high : ms > 30 ? .noticeable : .low
     }
 
     var label: String {
@@ -189,8 +197,13 @@ private struct DelayTips: View {
             Text("Reducing delay").font(.headline)
             Label("Use Automatic (the iPhone mic).", systemImage: "iphone")
             Label("Use wired headphones. Bluetooth adds about 150–250 ms.", systemImage: "cable.connector")
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Headphones with a cable may still use Bluetooth when it's plugged in. To force the cable:", systemImage: "bolt.horizontal")
+                Text("1. Plug in the cable.\n2. Turn Bluetooth off in Settings → Bluetooth. (Control Center only disconnects for a while.)\n3. Check that Route above no longer says Bluetooth.")
+                    .padding(.leading, 28)
+            }
             Label("On AirPods, set noise control to Off or Noise Cancellation. Transparency and Adaptive add processing.", systemImage: "airpodsmax")
-            Text("Some headphones add delay iOS can't report, so it may feel longer than shown.")
+            Text("Some headphones add delay iOS can't report, so it may feel longer than shown. Bluetooth delay never shows in the number.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
