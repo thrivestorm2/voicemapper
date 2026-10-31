@@ -117,22 +117,24 @@ struct HearYourselfSheet: View {
                 }
 
                 Section {
-                    VStack(alignment: .leading) {
-                        HStack {
-                            Text("Headphone volume")
-                            Spacer()
-                            Text(audio.systemVolume, format: .percent.precision(.fractionLength(0)))
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
+                    if audio.headphonesConnected {
+                        VStack(alignment: .leading) {
+                            HStack {
+                                Text("Headphone volume")
+                                Spacer()
+                                Text(audio.systemVolume, format: .percent.precision(.fractionLength(0)))
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            }
+                            SystemVolumeSlider(tint: audio.isAboveSafeVolume ? .systemOrange : nil)
+                                .frame(height: 34)
                         }
-                        SystemVolumeSlider(tint: audio.isAboveSafeVolume ? .systemOrange : nil)
-                            .frame(height: 34)
-                    }
-                    if audio.isAboveSafeVolume {
-                        Label("Above the safe-listening level. Long sessions this loud can harm your hearing.",
-                              systemImage: "ear.trianglebadge.exclamationmark")
-                            .font(.footnote)
-                            .foregroundStyle(.orange)
+                        if audio.isAboveSafeVolume {
+                            Label("Above the safe-listening level. Long sessions this loud can harm your hearing.",
+                                  systemImage: "ear.trianglebadge.exclamationmark")
+                                .font(.footnote)
+                                .foregroundStyle(.orange)
+                        }
                     }
 
                     VStack(alignment: .leading) {

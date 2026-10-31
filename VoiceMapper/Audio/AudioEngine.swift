@@ -72,7 +72,9 @@ final class AudioEngine {
         }
     }
 
-    var isAboveSafeVolume: Bool { systemVolume > Self.safeVolumeCap }
+    /// Only meaningful with headphones: without them iOS reports the
+    /// speaker's (often stale) volume.
+    var isAboveSafeVolume: Bool { headphonesConnected && systemVolume > Self.safeVolumeCap }
 
     /// "Wired headphones recommended" banner: Bluetooth output adds
     /// ~150–250 ms delay. See docs/PLAN.md §1a.
@@ -262,6 +264,7 @@ final class AudioEngine {
         loadVoiceLevel()
         let route = session.currentRoute
         headphonesConnected = Self.outputIsHeadphones(route)
+        systemVolume = session.outputVolume
         activeMicrophoneName = route.inputs.first?.portName
         let outputs = route.outputs.map(\.uid)
         if outputs != outputUIDs {
