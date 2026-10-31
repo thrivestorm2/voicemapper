@@ -10,6 +10,12 @@ final class AudioEngine {
         case undetermined, granted, denied
     }
 
+    struct Microphone: Identifiable, Hashable {
+        let id: String  // AVAudioSessionPortDescription.uid
+        let name: String
+        let isBluetooth: Bool
+    }
+
     /// Mixer level above which the volume slider shows a safe-listening warning.
     static let safeVolumeCap: Float = 0.6
     /// Longest delay offered for delayed-feedback drills.
@@ -18,6 +24,8 @@ final class AudioEngine {
     private(set) var micPermission: MicPermission = .undetermined
     private(set) var isHearingYourself = false
     private(set) var headphonesConnected = false
+    private(set) var microphones: [Microphone] = []
+    private(set) var activeMicrophoneName: String?
     private(set) var lastError: String?
 
     var volume: Float {
@@ -34,6 +42,15 @@ final class AudioEngine {
         }
     }
 
+    /// The user's chosen mic, or nil for automatic (wired/USB mic, else iPhone).
+    var selectedMicrophoneID: String? {
+        didSet {
+            UserDefaults.standard.set(selectedMicrophoneID, forKey: Keys.microphone)
+            applyPreferredInput()
+            refreshRoute()
+        }
+    }
+
     var isAboveSafeVolume: Bool { volume > Self.safeVolumeCap }
 
     private let engine = AVAudioEngine()
@@ -44,12 +61,14 @@ final class AudioEngine {
     private enum Keys {
         static let volume = "hearYourself.volume"
         static let delayMs = "hearYourself.delayMs"
+        static let microphone = "audio.microphoneID"
     }
 
     init() {
         let defaults = UserDefaults.standard
         volume = defaults.object(forKey: Keys.volume) as? Float ?? 0.4
         delayMs = defaults.object(forKey: Keys.delayMs) as? Double ?? 0
+        selectedMicrophoneID = defaults.string(forKey: Keys.microphone)
 
         // Pure delay: no feedback, fully wet, no extra filtering.
         delay.feedback = 0
@@ -62,7 +81,10 @@ final class AudioEngine {
         engine.attach(monitorMixer)
 
         micPermission = Self.currentPermission()
-        headphonesConnected = Self.outputIsHeadphones(session.currentRoute)
+        // Setting the category without activating doesn't affect other audio,
+        // and lets availableInputs list every mic for the picker.
+        try? configureSession()
+        refreshRoute()
         observeSession()
     }
 
@@ -77,12 +99,17 @@ final class AudioEngine {
             return
         }
         guard await requestMicPermission() else { return }
-        headphonesConnected = Self.outputIsHeadphones(session.currentRoute)
-        guard headphonesConnected else {
-            lastError = "Connect headphones to hear yourself."
-            return
-        }
         do {
+            // Check the route only after the session is configured and active;
+            // before that iOS may not report Bluetooth headphones.
+            try configureSession()
+            try session.setActive(true)
+            refreshRoute()
+            guard headphonesConnected else {
+                stop()
+                lastError = "Connect headphones to hear yourself."
+                return
+            }
             try start()
             isHearingYourself = true
         } catch {
@@ -91,13 +118,19 @@ final class AudioEngine {
         }
     }
 
-    private func start() throws {
+    private func configureSession() throws {
         // .measurement turns off voice processing (AGC, noise suppression) so
-        // later analysis sees the raw voice. A2DP keeps the built-in mic when
-        // Bluetooth headphones are connected, instead of the low-quality HFP mic.
-        try session.setCategory(.playAndRecord, mode: .measurement, options: [.allowBluetoothA2DP])
+        // later analysis sees the raw voice. A2DP gives high-quality Bluetooth
+        // output; HFP is allowed only so a Bluetooth mic can be chosen in the
+        // picker — applyPreferredInput() keeps it off otherwise.
+        try session.setCategory(.playAndRecord, mode: .measurement,
+                                options: [.allowBluetoothA2DP, .allowBluetoothHFP])
         try session.setPreferredSampleRate(48_000)
         try session.setPreferredIOBufferDuration(0.005)
+        applyPreferredInput()
+    }
+
+    private func start() throws {
         try session.setActive(true)
 
         let input = engine.inputNode
@@ -121,6 +154,29 @@ final class AudioEngine {
         engine.stop()
         isHearingYourself = false
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    // MARK: - Microphone
+
+    /// Routes input to the chosen mic, or in automatic mode to a wired/USB mic
+    /// if present, else the iPhone mic — never Bluetooth unless chosen.
+    private func applyPreferredInput() {
+        let inputs = session.availableInputs ?? []
+        let chosen = inputs.first { $0.uid == selectedMicrophoneID }
+            ?? inputs.first { [.headsetMic, .usbAudio].contains($0.portType) }
+            ?? inputs.first { $0.portType == .builtInMic }
+        if let chosen, session.preferredInput?.uid != chosen.uid {
+            try? session.setPreferredInput(chosen)
+        }
+    }
+
+    private func refreshRoute() {
+        let route = session.currentRoute
+        headphonesConnected = Self.outputIsHeadphones(route)
+        activeMicrophoneName = route.inputs.first?.portName
+        microphones = (session.availableInputs ?? []).map {
+            Microphone(id: $0.uid, name: $0.portName, isBluetooth: Self.bluetoothPorts.contains($0.portType))
+        }
     }
 
     // MARK: - Permission
@@ -164,7 +220,9 @@ final class AudioEngine {
     }
 
     private func routeChanged() {
-        headphonesConnected = Self.outputIsHeadphones(session.currentRoute)
+        // A newly connected wired/USB mic or a returning chosen mic should take over.
+        applyPreferredInput()
+        refreshRoute()
         if isHearingYourself && !headphonesConnected {
             stop()
             lastError = "Headphones disconnected, so hear-yourself was turned off."
@@ -180,6 +238,8 @@ final class AudioEngine {
             lastError = "Audio stopped after a device change. Turn hear-yourself on again."
         }
     }
+
+    private static let bluetoothPorts: Set<AVAudioSession.Port> = [.bluetoothHFP, .bluetoothLE, .bluetoothA2DP]
 
     private static func outputIsHeadphones(_ route: AVAudioSessionRouteDescription) -> Bool {
         // USB audio is included because USB-C wired headphones report as it.

@@ -41,6 +41,25 @@ struct HearYourselfSheet: View {
                 }
 
                 Section {
+                    Picker("Microphone", selection: $audio.selectedMicrophoneID) {
+                        Text("Automatic").tag(String?.none)
+                        ForEach(audio.microphones) { mic in
+                            Text(mic.name).tag(Optional(mic.id))
+                        }
+                    }
+                    if let active = audio.activeMicrophoneName {
+                        LabeledContent("Using", value: active)
+                            .foregroundStyle(.secondary)
+                    }
+                } footer: {
+                    if audio.microphones.contains(where: { $0.id == audio.selectedMicrophoneID && $0.isBluetooth }) {
+                        Text("Bluetooth mics record at lower quality and add delay, which makes pitch and resonance readings less accurate. The iPhone or a wired mic works best.")
+                    } else {
+                        Text("Automatic uses a wired or USB mic when one is connected, otherwise the iPhone's mic.")
+                    }
+                }
+
+                Section {
                     VStack(alignment: .leading) {
                         HStack {
                             Text("Volume")
