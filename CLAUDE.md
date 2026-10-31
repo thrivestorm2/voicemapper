@@ -35,7 +35,7 @@ SwiftUI · AVAudioEngine · Accelerate/vDSP · Swift Charts · SwiftData
 | # | Session | Scope | Device test | Status |
 |---|---|---|---|---|
 | S1 | Setup | Xcode project, app structure, tab bar with empty screens | App opens, tabs switch | done |
-| S2 | Audio | Engine, mic permission, hear-yourself toggle, volume cap, delay slider | Hear yourself in headphones | todo |
+| S2 | Audio | Engine, mic permission, hear-yourself toggle, volume cap, delay slider | Hear yourself in headphones | built (TestFlight build 2) — awaiting device test |
 | S3 | Bluetooth | Route monitoring, "wired recommended" banner, headphones-only lock | Banner appears with AirPods | todo |
 | S4 | Pitch | Pitch detection + note label | Correct note when humming | todo |
 | S5 | Range table | Colour-coded range table, current note highlighted | Highlight follows voice | todo |
