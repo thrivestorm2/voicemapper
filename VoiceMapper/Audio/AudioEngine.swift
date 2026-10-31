@@ -49,9 +49,10 @@ final class AudioEngine {
     var selectedMicrophoneID: String? {
         didSet {
             UserDefaults.standard.set(selectedMicrophoneID, forKey: Keys.microphone)
+            // The switch is asynchronous; routeChanged() rebuilds the engine
+            // once iOS reports the new mic.
             applyPreferredInput()
             refreshRoute()
-            if isHearingYourself { restart() }
         }
     }
 
@@ -63,6 +64,8 @@ final class AudioEngine {
     private var engine: AVAudioEngine?
     private var delay: AVAudioUnitDelay?
     private var monitorMixer: AVAudioMixerNode?
+    /// The input and output ports the running engine was built for.
+    private var engineRoute: String?
     private let session = AVAudioSession.sharedInstance()
 
     private enum Keys {
@@ -160,6 +163,7 @@ final class AudioEngine {
         self.engine = engine
         self.delay = delay
         self.monitorMixer = monitorMixer
+        engineRoute = Self.routeKey(session.currentRoute)
         updateLatency()
     }
 
@@ -187,6 +191,7 @@ final class AudioEngine {
         engine = nil
         delay = nil
         monitorMixer = nil
+        engineRoute = nil
         isHearingYourself = false
         deviceLatencyMs = nil
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
@@ -262,16 +267,25 @@ final class AudioEngine {
         // A chosen mic that reconnects should take over again.
         applyPreferredInput()
         refreshRoute()
-        updateLatency()
-        if isHearingYourself && !headphonesConnected {
+        guard isHearingYourself else { return }
+        if !headphonesConnected {
             stop()
             lastError = "Headphones disconnected, so hear-yourself was turned off."
+        } else if Self.routeKey(session.currentRoute) != engineRoute {
+            // A different mic or output: the engine's formats are now stale.
+            restart()
+        } else {
+            updateLatency()
         }
     }
 
     private func engineConfigurationChanged() {
         guard isHearingYourself, headphonesConnected else { return }
         restart()
+    }
+
+    private static func routeKey(_ route: AVAudioSessionRouteDescription) -> String {
+        (route.inputs + route.outputs).map(\.uid).joined(separator: "|")
     }
 
     private static let bluetoothPorts: Set<AVAudioSession.Port> = [.bluetoothHFP, .bluetoothLE, .bluetoothA2DP]
