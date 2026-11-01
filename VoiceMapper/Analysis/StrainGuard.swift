@@ -9,8 +9,11 @@ import Observation
 @Observable
 final class StrainGuard {
     enum Health: Equatable {
-        /// Not voicing, or no reference yet.
+        /// Not capturing.
         case unknown
+        /// Capturing, but not enough voice yet to compare against the
+        /// reference (~10 s with a baseline, ~40 s without).
+        case learning
         /// Background noise is too loud to judge.
         case noisy
         case steady
@@ -85,7 +88,7 @@ final class StrainGuard {
         self.topHz = topHz
         samples = []
         sessionReference = []
-        health = .unknown
+        health = .learning
     }
 
     /// Sets today's total while idle (launch, after a session is saved).
@@ -107,7 +110,8 @@ final class StrainGuard {
         if alert == nil, todaySeconds >= Double(capMinutes + extraMinutes) * 60 {
             alert = .dailyCap(minutes: capMinutes)
         }
-        guard let pitch else { health = .unknown; return }
+        // Pauses between words keep the last status rather than flickering.
+        guard let pitch else { return }
 
         samples.append(Sample(time: now, hz: pitch, quality: quality))
         let oldest = now.addingTimeInterval(-Self.rangeWindow * 2)
@@ -121,7 +125,7 @@ final class StrainGuard {
 
         let reasons = healthReasons(tick: tick)
         health = noisy ? .noisy
-            : reasons.map { $0.count >= 2 ? .strain : $0.isEmpty ? .steady : .watch } ?? .unknown
+            : reasons.map { $0.count >= 2 ? .strain : $0.isEmpty ? .steady : .watch } ?? .learning
 
         guard alertsEnabled, alert == nil, now >= (cooldownUntil ?? .distantPast) else { return }
         var triggers = (reasons?.count ?? 0) >= 2 ? reasons! : []

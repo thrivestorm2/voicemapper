@@ -140,7 +140,7 @@ struct VoiceQualityPanel: View {
             HStack(spacing: 8) {
                 Text("Health").frame(width: 56, alignment: .leading)
                 Circle().fill(healthColor).frame(width: 10, height: 10)
-                Text(healthText).foregroundStyle(health == .unknown || health == .noisy ? .secondary : .primary)
+                Text(healthText).foregroundStyle([.unknown, .learning, .noisy].contains(health) ? .secondary : .primary)
                 Spacer()
                 Text("Today \(todayMinutes) / \(capMinutes) min")
                     .font(.caption)
@@ -160,6 +160,7 @@ struct VoiceQualityPanel: View {
     private var healthText: String {
         switch health {
         case .unknown: "–"
+        case .learning: "Listening…"
         case .noisy: "Paused: too noisy"
         case .steady: "Steady"
         case .watch: "Watch: ease off a little"
@@ -169,7 +170,7 @@ struct VoiceQualityPanel: View {
 
     private var healthColor: Color {
         switch health {
-        case .unknown, .noisy: .secondary.opacity(0.4)
+        case .unknown, .learning, .noisy: .secondary.opacity(0.4)
         case .steady: .green
         case .watch: .yellow
         case .strain: .orange
