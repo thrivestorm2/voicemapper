@@ -18,6 +18,9 @@ struct PitchDetector {
     private static let dipThreshold: Float = 0.15
     /// Frames whose best dip is above this are treated as unvoiced.
     private static let voicedLimit: Float = 0.4
+    /// A dip at half the chosen lag below this means the chosen one was a
+    /// subharmonic (octave error).
+    private static let octaveDipLimit: Float = 0.25
     /// Frames quieter than this (RMS, full scale = 1) are treated as silence.
     private static let silenceRMS: Float = 0.003
 
@@ -87,6 +90,17 @@ struct PitchDetector {
             // No clear dip: fall back to the deepest one, if voiced at all.
             best = (tauMin...tauMax).min { cmnd[$0] < cmnd[$1] } ?? tauMin
             guard cmnd[best] < Self.voicedLimit else { return nil }
+        }
+
+        // Octave-down guard: on weak, breathy or creaky frames the deepest dip
+        // is often the subharmonic. If half that lag is also a clean dip, the
+        // true period is the shorter one.
+        let half = best / 2
+        if half >= tauMin {
+            let lo = max(tauMin, half - 2), hi = min(tauMax, half + 2)
+            if let alt = (lo...hi).min(by: { cmnd[$0] < cmnd[$1] }), cmnd[alt] < Self.octaveDipLimit {
+                best = alt
+            }
         }
 
         // Parabolic interpolation around the dip for sub-sample accuracy.
