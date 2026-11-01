@@ -39,7 +39,7 @@ SwiftUI · AVAudioEngine · Accelerate/vDSP · Swift Charts · SwiftData
 | S3 | Bluetooth | Route monitoring, "wired recommended" banner, headphones-only lock | Banner appears with AirPods | done |
 | S4 | Pitch | Pitch detection + note label | Correct note when humming | done |
 | S5 | Range table | Colour-coded range table, current note highlighted | Highlight follows voice | done |
-| S6 | Resonance | Formant analysis + resonance score | "ee" vs "oo" changes score | todo |
+| S6 | Resonance | Formant analysis + resonance score | "ee" vs "oo" changes score | done |
 | S7 | Grid | Grid view, gender zones, live dot + trail | Dot moves as expected | todo |
 | S8 | Storage | SwiftData sessions + baseline recording | Data survives restart | todo |
 | S9 | History | History overlay, heat map, Today/Week/Month/All | Overlay + heat map correct | todo |
