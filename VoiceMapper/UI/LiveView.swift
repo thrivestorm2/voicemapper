@@ -8,21 +8,13 @@ struct LiveView: View {
 
     var body: some View {
         NavigationStack {
-            // Overlay rather than stack the controls so the placeholder stays
-            // centred like the other tabs.
-            ContentUnavailableView(
-                "Live",
-                systemImage: "waveform",
-                description: Text("Your pitch and resonance grid will appear here.")
-            )
-            .overlay(alignment: .top) {
-                VStack(spacing: 20) {
-                    PitchLabel(reading: audio.pitch, isListening: isCapturing)
-                    ResonanceMeter(reading: audio.resonance, isListening: isCapturing)
-                        .padding(.horizontal, 24)
-                }
-                .padding(.top, 8)
+            VStack(spacing: 12) {
+                PitchLabel(reading: audio.pitch, isListening: isCapturing)
+                GridView(pitch: audio.pitch, resonance: audio.resonance, isListening: isCapturing)
+                    .padding(.horizontal, 16)
+                Color.clear.frame(height: 56)  // room for the buttons below
             }
+            .padding(.top, 8)
             .overlay(alignment: .bottom) {
                 HStack {
                     Button {

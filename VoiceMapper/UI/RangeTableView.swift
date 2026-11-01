@@ -131,7 +131,7 @@ private struct RangeRowView: View {
                 .padding(.leading, 12)
                 .foregroundStyle(.secondary)
             HStack(spacing: 8) {
-                ZoneSwatch(perceived: row.perceived, strength: row.commonness)
+                ZoneSwatch(perceived: row.perceived, strength: row.commonness, frequency: row.frequency)
                 Text(row.perceived.letter).font(.body.weight(.semibold))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -147,6 +147,8 @@ private struct RangeRowView: View {
 private struct ZoneSwatch: View {
     let perceived: PerceivedGender
     let strength: Double
+    /// When set, the colour blends the zones at this pitch, as the grid does.
+    var frequency: Double?
 
     var body: some View {
         RoundedRectangle(cornerRadius: 3)
@@ -156,11 +158,8 @@ private struct ZoneSwatch: View {
     }
 
     private var color: Color {
-        switch perceived {
-        case .male: .blue
-        case .ambiguous: .purple
-        case .female: Color(red: 1.0, green: 0.45, blue: 0.75)
-        }
+        guard let frequency else { return perceived.color }
+        return VoicePerception.color(VoicePerception.blend(frequency: frequency, score: 50))
     }
 }
 

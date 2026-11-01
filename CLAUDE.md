@@ -40,7 +40,7 @@ SwiftUI · AVAudioEngine · Accelerate/vDSP · Swift Charts · SwiftData
 | S4 | Pitch | Pitch detection + note label | Correct note when humming | done |
 | S5 | Range table | Colour-coded range table, current note highlighted | Highlight follows voice | done |
 | S6 | Resonance | Formant analysis + resonance score | "ee" vs "oo" changes score | done |
-| S7 | Grid | Grid view, gender zones, live dot + trail | Dot moves as expected | todo |
+| S7 | Grid | Grid view, gender zones, live dot + trail | Dot moves as expected | done |
 | S8 | Storage | SwiftData sessions + baseline recording | Data survives restart | todo |
 | S9 | History | History overlay, heat map, Today/Week/Month/All | Overlay + heat map correct | todo |
 | S10 | Safety | Weight/health measures, strain alerts, daily cap | Alert fires in strain test | todo |
