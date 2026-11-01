@@ -16,8 +16,11 @@ struct ResonanceReading: Equatable, Sendable {
 final class ResonanceTracker: @unchecked Sendable {
     /// Samples between analyses (~43 ms at 48 kHz).
     private static let hop = 2048
-    /// ~0.4 s of accepted frames.
-    private static let medianCount = 9
+    /// ~0.65 s of accepted frames; the median throws out mis-tracked ones.
+    private static let medianCount = 15
+    /// Share of each new median taken by the displayed value (exponential
+    /// follow), so the dot glides instead of jumping.
+    private static let followRate = 0.2
     /// Accepted frames before the first reading is shown.
     private static let minimumFrames = 3
     /// Analyses in a row without an accepted frame before the reading clears
@@ -32,6 +35,7 @@ final class ResonanceTracker: @unchecked Sendable {
     private var recent: [Double] = []
     private var missedRun = 0
     private var hasReading = false
+    private var smoothed: Double?
 
     init(sampleRate: Double, onReading: @escaping @Sendable (ResonanceReading?) -> Void) {
         analyzer = FormantAnalyzer(sampleRate: sampleRate)
@@ -57,6 +61,7 @@ final class ResonanceTracker: @unchecked Sendable {
             missedRun += 1
             if missedRun >= Self.dropoutFrames {
                 recent.removeAll()
+                smoothed = nil
                 if hasReading {
                     hasReading = false
                     onReading(nil)
@@ -69,10 +74,12 @@ final class ResonanceTracker: @unchecked Sendable {
         if recent.count > Self.medianCount { recent.removeFirst() }
         guard recent.count >= Self.minimumFrames else { return }
         let median = recent.sorted()[recent.count / 2]
+        let value = smoothed.map { $0 + Self.followRate * (median - $0) } ?? median
+        smoothed = value
         hasReading = true
         onReading(ResonanceReading(
-            score: ResonanceScorer.score(spacing: median),
-            spacing: median,
+            score: ResonanceScorer.score(spacing: value),
+            spacing: value,
             formants: formants.prefix(4).map(\.frequency)
         ))
     }

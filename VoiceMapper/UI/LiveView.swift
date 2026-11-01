@@ -70,6 +70,8 @@ private struct PitchLabel: View {
     let reading: PitchReading?
     let isListening: Bool
 
+    /// Always three lines (note, Hz or prompt, goal caption) so the height
+    /// never changes and the resonance bar below stays put.
     var body: some View {
         VStack(spacing: 2) {
             if let reading {
@@ -79,11 +81,6 @@ private struct PitchLabel: View {
                 Text("\(Int(reading.frequency.rounded())) Hz")
                     .font(.title3)
                     .foregroundStyle(.secondary)
-                if let goal = GoalRange(low: goalLow, high: goalHigh) {
-                    Text(goalCaption(goal.direction(of: reading.frequency)))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
             } else {
                 Text("–")
                     .font(.system(size: 64, weight: .semibold, design: .rounded))
@@ -92,13 +89,23 @@ private struct PitchLabel: View {
                     .font(.title3)
                     .foregroundStyle(.secondary)
             }
+            Text(caption ?? " ")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(caption == nil)
         }
+        .lineLimit(1)
         .monospacedDigit()
         .accessibilityElement(children: .combine)
     }
 }
 
 extension PitchLabel {
+    fileprivate var caption: String? {
+        guard let reading, let goal = GoalRange(low: goalLow, high: goalHigh) else { return nil }
+        return goalCaption(goal.direction(of: reading.frequency))
+    }
+
     /// Red when far from the goal range through yellow to green inside it; the
     /// caption below says the same in words.
     fileprivate func noteColor(for reading: PitchReading) -> Color {
