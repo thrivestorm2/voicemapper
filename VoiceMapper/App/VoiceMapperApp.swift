@@ -24,6 +24,7 @@ struct VoiceMapperApp: App {
             RootTabView()
                 .environment(audio)
                 .environment(strain)
+                .environment(recorder)
                 .task { recorder.run() }
         }
         .modelContainer(container)

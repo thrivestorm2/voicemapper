@@ -1,24 +1,32 @@
 import Foundation
+import Observation
 import SwiftData
 
 /// Watches the audio engine and saves a `PracticeSession` each time capturing
 /// runs and stops. Samples the latest readings 5×/second.
 @MainActor
+@Observable
 final class SessionRecorder {
     static let tick = 0.2
     /// Sessions with less voiced time than this are discarded as accidental taps.
     static let minimumVoiced = 3.0
+    /// A saved session noisier than this asks whether to keep it.
+    static let noisyPromptShare = 0.3
 
-    private let audio: AudioEngine
-    private let context: ModelContext
-    private let strain: StrainGuard
-    private var task: Task<Void, Never>?
+    /// Just-saved session with a lot of background noise, awaiting Keep/Delete.
+    var noisySession: PracticeSession?
 
-    private var start: Date?
-    private var hz: [Double] = []
-    private var scores: [Double] = []
-    private var qualities: [VoiceQuality] = []
-    private var cells: [Int: [Int: Double]] = [:]  // midi → bin → seconds
+    @ObservationIgnored private let audio: AudioEngine
+    @ObservationIgnored private let context: ModelContext
+    @ObservationIgnored private let strain: StrainGuard
+    @ObservationIgnored private var task: Task<Void, Never>?
+
+    @ObservationIgnored private var start: Date?
+    @ObservationIgnored private var hz: [Double] = []
+    @ObservationIgnored private var noisyTicks = 0
+    @ObservationIgnored private var scores: [Double] = []
+    @ObservationIgnored private var qualities: [VoiceQuality] = []
+    @ObservationIgnored private var cells: [Int: [Int: Double]] = [:]  // midi → bin → seconds
 
     init(audio: AudioEngine, context: ModelContext, strain: StrainGuard) {
         self.audio = audio
@@ -46,6 +54,7 @@ final class SessionRecorder {
         strain.observe(tick: Self.tick, pitch: audio.pitch?.frequency, quality: quality, noisy: audio.isNoisy)
         guard let pitch = audio.pitch else { return }
         hz.append(pitch.frequency)
+        if audio.isNoisy { noisyTicks += 1 }
         if let quality { qualities.append(quality) }
         if let r = audio.resonance {
             scores.append(r.score)
@@ -74,7 +83,7 @@ final class SessionRecorder {
                 strain.endSession()
                 strain.setToday(practicedToday())
             }
-            start = nil; hz = []; scores = []; qualities = []; cells = [:]
+            start = nil; hz = []; noisyTicks = 0; scores = []; qualities = []; cells = [:]
         }
         guard let start else { return }
         let voiced = Double(hz.count) * Self.tick
@@ -84,6 +93,7 @@ final class SessionRecorder {
             start: start, duration: Date.now.timeIntervalSince(start), voicedSeconds: voiced,
             medianHz: med, p10Hz: lo, p90Hz: hi, medianResonance: median(scores))
         session.quality = QualitySummary(qualities)
+        session.noisyShare = Double(noisyTicks) / Double(hz.count)
         context.insert(session)
         for (midi, bins) in cells {
             for (bin, seconds) in bins {
@@ -91,5 +101,14 @@ final class SessionRecorder {
             }
         }
         try? context.save()
+        if session.noisyShare ?? 0 >= Self.noisyPromptShare { noisySession = session }
+    }
+
+    /// Deletes a saved session (swipe in History, or Delete on the noise prompt).
+    func delete(_ session: PracticeSession) {
+        if noisySession == session { noisySession = nil }
+        context.delete(session)
+        try? context.save()
+        if start == nil { strain.setToday(practicedToday()) }
     }
 }

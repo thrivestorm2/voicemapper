@@ -17,6 +17,8 @@ final class PracticeSession {
     var medianResonance: Double?
     /// Voice-quality medians (S10); nil for older sessions or no readings.
     var quality: QualitySummary?
+    /// Share (0–1) of voiced time with loud background noise; nil for older sessions.
+    var noisyShare: Double?
     @Relationship(deleteRule: .cascade, inverse: \GridCellCount.session)
     var cells: [GridCellCount] = []
 
