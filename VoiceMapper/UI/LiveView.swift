@@ -28,6 +28,16 @@ struct LiveView: View {
                 VoiceQualityPanel(quality: isCapturing ? audio.quality : nil, health: strain.health,
                                   todayMinutes: Int(strain.todaySeconds / 60), capMinutes: capMinutes)
                     .padding(.horizontal, 16)
+                    // The warning sits over the panel's own space, so the
+                    // grid never changes size when it comes and goes.
+                    .opacity(audio.isNoisy ? 0 : 1)
+                    .overlay {
+                        if audio.isNoisy {
+                            NoiseBanner(compact: true)
+                                .padding(.horizontal, 16)
+                                .transition(.opacity)
+                        }
+                    }
                 Color.clear.frame(height: 56)  // room for the buttons below
             }
             .padding(.top, 8)
@@ -59,10 +69,6 @@ struct LiveView: View {
                 VStack(spacing: 8) {
                     if let until = strain.restUntil {
                         RestBanner(until: until) { strain.endRest() }
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-                    if audio.isNoisy {
-                        NoiseBanner()
                             .transition(.move(edge: .top).combined(with: .opacity))
                     }
                     if audio.showsBluetoothBanner {

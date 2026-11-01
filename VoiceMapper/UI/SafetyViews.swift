@@ -73,14 +73,20 @@ private struct AlertCard: View {
 
 /// Shown while background noise is loud enough to throw off the readings.
 struct NoiseBanner: View {
+    /// Shorter text and padding, to fit in the space of the Live weight/health rows.
+    var compact = false
+
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "speaker.wave.3.fill").foregroundStyle(.orange)
-            Text("Background noise is affecting the readings. Try a quieter spot or move closer to the mic.")
-                .font(.subheadline)
+            Text(compact
+                 ? "Too noisy for accurate readings. Try a quieter spot or move closer to the mic."
+                 : "Background noise is affecting the readings. Try a quieter spot or move closer to the mic.")
+                .font(compact ? .footnote : .subheadline)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(12)
+        .padding(compact ? 8 : 12)
         .background(.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .combine)
     }
