@@ -121,7 +121,14 @@ struct HistoryView: View {
     private func sessionList(_ sessions: [PracticeSession]) -> some View {
         Section {
             ForEach(sessions) { s in
+                let blend = VoicePerception.blend(of: s.cells)
                 HStack {
+                    // How the whole session typically reads, in the grid's
+                    // zone colours: blue masculine, purple androgynous, pink feminine.
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(blend.map(VoicePerception.color) ?? Color.secondary.opacity(0.3))
+                        .frame(width: 8, height: 28)
+                        .accessibilityLabel(blend.map(VoicePerception.description) ?? "No resonance data")
                     Text(s.start.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
                     if (s.noisyShare ?? 0) >= SessionRecorder.noisyPromptShare {
                         Image(systemName: "speaker.wave.3.fill")
@@ -142,7 +149,7 @@ struct HistoryView: View {
         } header: {
             Text("Sessions").font(.headline).foregroundStyle(.primary)
         } footer: {
-            Text("Columns: date, length, median note, resonance score. Swipe left on a session to delete it. \(Image(systemName: "speaker.wave.3.fill")) marks a noisy session.")
+            Text("The colour stripe shows how the whole session typically reads, using every pitch and resonance moment: blue masculine, purple androgynous, pink feminine, with shades in between. It's a typical-listener estimate, not a verdict. Columns: date, length, median note, resonance score. Swipe left on a session to delete it. \(Image(systemName: "speaker.wave.3.fill")) marks a noisy session.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
