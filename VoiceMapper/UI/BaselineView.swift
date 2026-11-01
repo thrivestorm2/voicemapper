@@ -31,6 +31,7 @@ struct BaselineView: View {
                 }
                 if isRecording {
                     ProgressView(value: elapsed, total: Self.length)
+                    if audio.isNoisy { NoiseBanner() }
                     Text(audio.pitch.map { "\($0.note.name)" } ?? "–")
                         .font(.system(size: 56, weight: .semibold, design: .rounded))
                     Button("Cancel", role: .cancel) { cancel() }
@@ -66,7 +67,7 @@ struct BaselineView: View {
                 if let p = audio.pitch {
                     hz.append(p.frequency)
                     if let r = audio.resonance { scores.append(r.score) }
-                    if let q = audio.quality { qualities.append(q) }
+                    if let q = audio.quality, !audio.isNoisy { qualities.append(q) }
                 }
             }
             guard !Task.isCancelled else { return }

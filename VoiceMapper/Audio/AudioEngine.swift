@@ -33,6 +33,16 @@ final class AudioEngine {
     private(set) var resonance: ResonanceReading?
     /// ~1 s median of voice-quality measures (weight, health), nil when unvoiced.
     private(set) var quality: VoiceQuality?
+    /// Background noise level (dBFS), nil when not capturing.
+    private(set) var noiseFloor: Double?
+    /// Background noise is loud enough to throw off the readings. Turns on
+    /// after 1.5 s of noise and off after 3 s of quiet, so it doesn't flicker.
+    private(set) var isNoisy = false
+
+    /// A room louder than this is noisy whatever the voice level ...
+    static let noisyFloor = -48.0
+    /// ... and the voice should be at least this far above the room.
+    static let minimumVoiceMargin = 18.0
     private(set) var headphonesConnected = false
     private(set) var microphones: [Microphone] = []
     private(set) var activeMicrophoneName: String?
@@ -109,6 +119,8 @@ final class AudioEngine {
     /// The outputs last seen, to notice output changes for the banner.
     private var outputUIDs: [String] = []
     private var volumeObservation: NSKeyValueObservation?
+    private var noisySince: Date?
+    private var quietSince: Date?
     private let session = AVAudioSession.sharedInstance()
 
     private enum Keys {
@@ -260,8 +272,13 @@ final class AudioEngine {
                 MainActor.assumeIsolated { self?.quality = reading }
             }
         }
+        let noiseMeter = NoiseMeter(sampleRate: format.sampleRate) { [weak self] floor in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.updateNoise(floor: floor) }
+            }
+        }
         Self.installAnalysisTap(on: input, format: format, pitch: pitchTracker,
-                                resonance: resonanceTracker, quality: qualityTracker)
+                                resonance: resonanceTracker, quality: qualityTracker, noise: noiseMeter)
 
         engine.prepare()
         try engine.start()
@@ -272,6 +289,7 @@ final class AudioEngine {
         pitch = nil
         resonance = nil
         quality = nil
+        resetNoise()
         updateLatency()
     }
 
@@ -280,7 +298,8 @@ final class AudioEngine {
     /// it on the audio thread.
     private nonisolated static func installAnalysisTap(
         on input: AVAudioInputNode, format: AVAudioFormat,
-        pitch: PitchTracker, resonance: ResonanceTracker, quality: VoiceQualityTracker
+        pitch: PitchTracker, resonance: ResonanceTracker, quality: VoiceQualityTracker,
+        noise: NoiseMeter
     ) {
         input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             guard let channel = buffer.floatChannelData?[0] else { return }
@@ -288,7 +307,34 @@ final class AudioEngine {
             pitch.process(samples)
             resonance.process(samples, pitch: pitch.currentFrequency)
             quality.process(samples, pitch: pitch.currentFrequency)
+            noise.process(samples)
         }
+    }
+
+    // MARK: - Background noise
+
+    private func updateNoise(floor: Double) {
+        guard engine != nil else { return }
+        noiseFloor = floor
+        let noisyNow = floor > Self.noisyFloor
+            || (quality.map { $0.level - floor < Self.minimumVoiceMargin } ?? false)
+        let now = Date.now
+        if noisyNow {
+            quietSince = nil
+            if noisySince == nil { noisySince = now }
+            if !isNoisy, now.timeIntervalSince(noisySince!) >= 1.5 { isNoisy = true }
+        } else {
+            noisySince = nil
+            if quietSince == nil { quietSince = now }
+            if isNoisy, now.timeIntervalSince(quietSince!) >= 3 { isNoisy = false }
+        }
+    }
+
+    private func resetNoise() {
+        noiseFloor = nil
+        isNoisy = false
+        noisySince = nil
+        quietSince = nil
     }
 
     private func updateLatency() {
@@ -322,6 +368,7 @@ final class AudioEngine {
         pitch = nil
         resonance = nil
         quality = nil
+        resetNoise()
         deviceLatencyMs = nil
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
     }

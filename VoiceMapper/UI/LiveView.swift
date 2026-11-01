@@ -61,6 +61,10 @@ struct LiveView: View {
                         RestBanner(until: until) { strain.endRest() }
                             .transition(.move(edge: .top).combined(with: .opacity))
                     }
+                    if audio.isNoisy {
+                        NoiseBanner()
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                     if audio.showsBluetoothBanner {
                         BluetoothBanner { audio.dismissBluetoothBanner() }
                             .transition(.move(edge: .top).combined(with: .opacity))
@@ -70,6 +74,7 @@ struct LiveView: View {
             }
             .animation(.default, value: audio.showsBluetoothBanner)
             .animation(.default, value: strain.restUntil)
+            .animation(.default, value: audio.isNoisy)
             .navigationTitle("Live")
             .sheet(isPresented: $showingHearYourself) {
                 HearYourselfSheet()

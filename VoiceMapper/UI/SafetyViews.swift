@@ -71,6 +71,21 @@ private struct AlertCard: View {
     }
 }
 
+/// Shown while background noise is loud enough to throw off the readings.
+struct NoiseBanner: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "speaker.wave.3.fill").foregroundStyle(.orange)
+            Text("Background noise is affecting the readings. Try a quieter spot or move closer to the mic.")
+                .font(.subheadline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .combine)
+    }
+}
+
 /// Countdown shown on Live during a rest.
 struct RestBanner: View {
     let until: Date
@@ -119,7 +134,7 @@ struct VoiceQualityPanel: View {
             HStack(spacing: 8) {
                 Text("Health").frame(width: 56, alignment: .leading)
                 Circle().fill(healthColor).frame(width: 10, height: 10)
-                Text(healthText).foregroundStyle(health == .unknown ? .secondary : .primary)
+                Text(healthText).foregroundStyle(health == .unknown || health == .noisy ? .secondary : .primary)
                 Spacer()
                 Text("Today \(todayMinutes) / \(capMinutes) min")
                     .font(.caption)
@@ -139,6 +154,7 @@ struct VoiceQualityPanel: View {
     private var healthText: String {
         switch health {
         case .unknown: "–"
+        case .noisy: "Paused: too noisy"
         case .steady: "Steady"
         case .watch: "Watch: ease off a little"
         case .strain: "Signs of strain"
@@ -147,7 +163,7 @@ struct VoiceQualityPanel: View {
 
     private var healthColor: Color {
         switch health {
-        case .unknown: .secondary.opacity(0.4)
+        case .unknown, .noisy: .secondary.opacity(0.4)
         case .steady: .green
         case .watch: .yellow
         case .strain: .orange

@@ -11,6 +11,8 @@ final class StrainGuard {
     enum Health: Equatable {
         /// Not voicing, or no reference yet.
         case unknown
+        /// Background noise is too loud to judge.
+        case noisy
         case steady
         /// One measure is off its reference.
         case watch
@@ -97,7 +99,9 @@ final class StrainGuard {
         health = .unknown
     }
 
-    func observe(tick: Double, pitch: Double?, quality: VoiceQuality?, now: Date = .now) {
+    /// `quality` should be nil while `noisy`: noise lowers clarity and raises
+    /// level, which would look like strain.
+    func observe(tick: Double, pitch: Double?, quality: VoiceQuality?, noisy: Bool = false, now: Date = .now) {
         rollDay()
         todaySeconds += tick
         if alert == nil, todaySeconds >= Double(capMinutes + extraMinutes) * 60 {
@@ -116,7 +120,8 @@ final class StrainGuard {
         }
 
         let reasons = healthReasons(tick: tick)
-        health = reasons.map { $0.count >= 2 ? .strain : $0.isEmpty ? .steady : .watch } ?? .unknown
+        health = noisy ? .noisy
+            : reasons.map { $0.count >= 2 ? .strain : $0.isEmpty ? .steady : .watch } ?? .unknown
 
         guard alertsEnabled, alert == nil, now >= (cooldownUntil ?? .distantPast) else { return }
         var triggers = (reasons?.count ?? 0) >= 2 ? reasons! : []

@@ -41,10 +41,12 @@ final class SessionRecorder {
         let capturing = audio.isListening || audio.isHearingYourself
         guard capturing else { finish(); return }
         if start == nil { begin() }
-        strain.observe(tick: Self.tick, pitch: audio.pitch?.frequency, quality: audio.quality)
+        // Noise skews the quality measures, so they're left out while noisy.
+        let quality = audio.isNoisy ? nil : audio.quality
+        strain.observe(tick: Self.tick, pitch: audio.pitch?.frequency, quality: quality, noisy: audio.isNoisy)
         guard let pitch = audio.pitch else { return }
         hz.append(pitch.frequency)
-        if let q = audio.quality { qualities.append(q) }
+        if let quality { qualities.append(quality) }
         if let r = audio.resonance {
             scores.append(r.score)
             cells[pitch.note.midi, default: [:]][GridCellCount.bin(forResonance: r.score), default: 0] += Self.tick
