@@ -15,6 +15,8 @@ final class PracticeSession {
     var p90Hz: Double
     /// Median resonance score (0–100); nil if no reliable readings.
     var medianResonance: Double?
+    /// Voice-quality medians (S10); nil for older sessions or no readings.
+    var quality: QualitySummary?
     @Relationship(deleteRule: .cascade, inverse: \GridCellCount.session)
     var cells: [GridCellCount] = []
 
@@ -51,13 +53,30 @@ final class GridCellCount {
     }
 }
 
-/// The user's own reference voice from a 20-second recording. One row;
-/// re-recording replaces it. Health measures (HNR, jitter, shimmer) join in S10.
+/// Medians of the voice-quality measures over a session or the baseline.
+struct QualitySummary: Codable, Equatable, Sendable {
+    var hnr: Double
+    var cpp: Double
+    var jitter: Double?
+    var shimmer: Double?
+    var level: Double
+    var weight: Double
+
+    init?(_ samples: [VoiceQuality]) {
+        guard let m = VoiceQuality.median(of: samples) else { return nil }
+        hnr = m.hnr; cpp = m.cpp; jitter = m.jitter; shimmer = m.shimmer; level = m.level
+        weight = VoiceMapper.median(samples.map(\.weight)) ?? m.weight
+    }
+}
+
+/// The user's own reference voice from a 30-second reading. One row;
+/// re-recording replaces it. `quality` is the health reference for StrainGuard.
 @Model
 final class Baseline {
     var date: Date
     var medianHz: Double
     var medianResonance: Double?
+    var quality: QualitySummary?
 
     init(date: Date, medianHz: Double, medianResonance: Double?) {
         self.date = date

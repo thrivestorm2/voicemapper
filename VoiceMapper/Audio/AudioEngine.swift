@@ -31,6 +31,8 @@ final class AudioEngine {
     private(set) var pitch: PitchReading?
     /// Current smoothed resonance, or nil when there's no steady voiced sound.
     private(set) var resonance: ResonanceReading?
+    /// ~1 s median of voice-quality measures (weight, health), nil when unvoiced.
+    private(set) var quality: VoiceQuality?
     private(set) var headphonesConnected = false
     private(set) var microphones: [Microphone] = []
     private(set) var activeMicrophoneName: String?
@@ -253,7 +255,13 @@ final class AudioEngine {
                 MainActor.assumeIsolated { self?.resonance = reading }
             }
         }
-        Self.installAnalysisTap(on: input, format: format, pitch: pitchTracker, resonance: resonanceTracker)
+        let qualityTracker = VoiceQualityTracker(sampleRate: format.sampleRate) { [weak self] reading in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.quality = reading }
+            }
+        }
+        Self.installAnalysisTap(on: input, format: format, pitch: pitchTracker,
+                                resonance: resonanceTracker, quality: qualityTracker)
 
         engine.prepare()
         try engine.start()
@@ -263,6 +271,7 @@ final class AudioEngine {
         engineRoute = Self.routeKey(session.currentRoute)
         pitch = nil
         resonance = nil
+        quality = nil
         updateLatency()
     }
 
@@ -271,13 +280,14 @@ final class AudioEngine {
     /// it on the audio thread.
     private nonisolated static func installAnalysisTap(
         on input: AVAudioInputNode, format: AVAudioFormat,
-        pitch: PitchTracker, resonance: ResonanceTracker
+        pitch: PitchTracker, resonance: ResonanceTracker, quality: VoiceQualityTracker
     ) {
         input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             guard let channel = buffer.floatChannelData?[0] else { return }
             let samples = UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength))
             pitch.process(samples)
             resonance.process(samples, pitch: pitch.currentFrequency)
+            quality.process(samples, pitch: pitch.currentFrequency)
         }
     }
 
@@ -311,6 +321,7 @@ final class AudioEngine {
         isListening = false
         pitch = nil
         resonance = nil
+        quality = nil
         deviceLatencyMs = nil
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
     }

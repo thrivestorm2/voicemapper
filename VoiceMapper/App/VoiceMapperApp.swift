@@ -6,6 +6,7 @@ struct VoiceMapperApp: App {
     @State private var audio = AudioEngine()
     private let container: ModelContainer
     @State private var recorder: SessionRecorder
+    @State private var strain: StrainGuard
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -13,13 +14,16 @@ struct VoiceMapperApp: App {
         let audio = AudioEngine()
         self.container = container
         _audio = State(initialValue: audio)
-        _recorder = State(initialValue: SessionRecorder(audio: audio, context: container.mainContext))
+        let strain = StrainGuard()
+        _strain = State(initialValue: strain)
+        _recorder = State(initialValue: SessionRecorder(audio: audio, context: container.mainContext, strain: strain))
     }
 
     var body: some Scene {
         WindowGroup {
             RootTabView()
                 .environment(audio)
+                .environment(strain)
                 .task { recorder.run() }
         }
         .modelContainer(container)

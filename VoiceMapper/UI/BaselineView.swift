@@ -1,7 +1,8 @@
 import SwiftUI
 import SwiftData
 
-/// Records 20 seconds of the user's natural voice and stores the medians.
+/// Records 30 seconds of the user's natural voice and stores the medians,
+/// including the voice-quality reference StrainGuard compares against.
 struct BaselineView: View {
     @Environment(AudioEngine.self) private var audio
     @Environment(\.modelContext) private var context
@@ -13,6 +14,7 @@ struct BaselineView: View {
     @State private var isRecording = false
     @State private var hz: [Double] = []
     @State private var scores: [Double] = []
+    @State private var qualities: [VoiceQuality] = []
     @State private var result: String?
     @State private var task: Task<Void, Never>?
 
@@ -53,7 +55,7 @@ struct BaselineView: View {
     }
 
     private func begin() {
-        result = nil; elapsed = 0; hz = []; scores = []
+        result = nil; elapsed = 0; hz = []; scores = []; qualities = []
         task = Task {
             await audio.setListening(true)
             guard audio.isListening else { return }
@@ -64,6 +66,7 @@ struct BaselineView: View {
                 if let p = audio.pitch {
                     hz.append(p.frequency)
                     if let r = audio.resonance { scores.append(r.score) }
+                    if let q = audio.quality { qualities.append(q) }
                 }
             }
             guard !Task.isCancelled else { return }
@@ -79,7 +82,9 @@ struct BaselineView: View {
             return
         }
         try? context.delete(model: Baseline.self)
-        context.insert(Baseline(date: .now, medianHz: med, medianResonance: median(scores)))
+        let baseline = Baseline(date: .now, medianHz: med, medianResonance: median(scores))
+        baseline.quality = QualitySummary(qualities)
+        context.insert(baseline)
         try? context.save()
         result = "Saved: median \(Note(frequency: med).name) (\(Int(med.rounded())) Hz)"
     }

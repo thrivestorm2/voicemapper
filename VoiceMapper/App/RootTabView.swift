@@ -6,6 +6,7 @@ enum AppTab: Hashable {
 }
 
 struct RootTabView: View {
+    @Environment(StrainGuard.self) private var strain
     @State private var selection: AppTab = .live
 
     var body: some View {
@@ -30,10 +31,13 @@ struct RootTabView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(AppTab.settings)
         }
+        .overlay { SafetyAlertOverlay() }
+        .animation(.default, value: strain.alert)
     }
 }
 
 #Preview {
     RootTabView()
         .environment(AudioEngine())
+        .environment(StrainGuard())
 }

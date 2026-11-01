@@ -43,7 +43,7 @@ SwiftUI · AVAudioEngine · Accelerate/vDSP · Swift Charts · SwiftData
 | S7 | Grid | Grid view, gender zones, live dot + trail | Dot moves as expected | done |
 | S8 | Storage | SwiftData sessions + baseline recording | Data survives restart | done |
 | S9 | History | History overlay, heat map, Today/Week/Month/All | Overlay + heat map correct | done |
-| S10 | Safety | Weight/health measures, strain alerts, daily cap | Alert fires in strain test | todo |
+| S10 | Safety | Weight/health measures, strain alerts, daily cap | Alert fires in strain test | done |
 | S11 | Exercises | Exercise list, warm-up, cool-down, target-hold drill | Exercises completable | todo |
 | S12 | Setup & settings | Onboarding, goal picker, settings, Face ID, delete all | Clean install end to end | todo |
 | S13 | Polish | Praat accuracy check, accessibility, colour-blind palette, performance | Overall testing | todo |

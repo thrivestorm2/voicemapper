@@ -3,6 +3,8 @@ import SwiftData
 
 struct LiveView: View {
     @Environment(AudioEngine.self) private var audio
+    @Environment(StrainGuard.self) private var strain
+    @AppStorage(StrainGuard.capKey) private var capMinutes = StrainGuard.defaultCapMinutes
     @Query(sort: \PracticeSession.start) private var allSessions: [PracticeSession]
     @AppStorage("showHistoryOverlay") private var showOverlay = false
     @AppStorage("showHeatMap") private var showHeat = false
@@ -23,12 +25,16 @@ struct LiveView: View {
                          trace: showOverlay ? HeatmapBinner.points(from: sessions) : [])
                     .padding(.horizontal, 16)
                 historyControls
+                VoiceQualityPanel(quality: isCapturing ? audio.quality : nil, health: strain.health,
+                                  todayMinutes: Int(strain.todaySeconds / 60), capMinutes: capMinutes)
+                    .padding(.horizontal, 16)
                 Color.clear.frame(height: 56)  // room for the buttons below
             }
             .padding(.top, 8)
             .overlay(alignment: .bottom) {
                 HStack {
                     Button {
+                        if !audio.isListening { strain.endRest() }
                         Task { await audio.setListening(!audio.isListening) }
                     } label: {
                         Label(audio.isListening ? "Stop" : "Speak",
@@ -50,13 +56,20 @@ struct LiveView: View {
                 .padding()
             }
             .safeAreaInset(edge: .top) {
-                if audio.showsBluetoothBanner {
-                    BluetoothBanner { audio.dismissBluetoothBanner() }
-                        .padding(.horizontal)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                VStack(spacing: 8) {
+                    if let until = strain.restUntil {
+                        RestBanner(until: until) { strain.endRest() }
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    if audio.showsBluetoothBanner {
+                        BluetoothBanner { audio.dismissBluetoothBanner() }
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                 }
+                .padding(.horizontal)
             }
             .animation(.default, value: audio.showsBluetoothBanner)
+            .animation(.default, value: strain.restUntil)
             .navigationTitle("Live")
             .sheet(isPresented: $showingHearYourself) {
                 HearYourselfSheet()
@@ -147,4 +160,5 @@ extension PitchLabel {
 #Preview {
     LiveView()
         .environment(AudioEngine())
+        .environment(StrainGuard())
 }
