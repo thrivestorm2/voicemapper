@@ -47,6 +47,7 @@ struct GridView: View {
                     }
                     goalBand(in: size)
                     resonanceGoalBand(in: size)
+                    targetBox(in: size)
                     gridLines(in: size)
                     trailAndDot(in: size)
                     offScaleIndicator(in: size)
@@ -82,6 +83,12 @@ struct GridView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .padding(.leading, 34)
+
+            Text(goalInstructions)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.leading, 34)
         }
         .onChange(of: resonance) { _, new in
             if let new { lastScore = new.score }
@@ -139,9 +146,29 @@ struct GridView: View {
                 .frame(width: right - left, height: size.height)
                 .offset(x: left)
                 .overlay(alignment: .bottomLeading) {
-                    Text("Goal").font(.caption2).padding(3).offset(x: left)
+                    Text("Resonance goal").font(.caption2.weight(.semibold)).fixedSize().padding(3).offset(x: left)
                         .foregroundStyle(.secondary)
                 }
+        }
+    }
+
+    /// Where both goals are set, the overlap is the target: a solid box with a
+    /// light halo so it reads over any shading.
+    @ViewBuilder
+    private func targetBox(in size: CGSize) -> some View {
+        if let pitchGoal = GoalRange(low: goalLow, high: goalHigh),
+           let resGoal = ResonanceGoal(low: resLow, high: resHigh) {
+            let left = x(resGoal.low, size), right = x(resGoal.high, size)
+            let top = y(Double(pitchGoal.high) + 0.5, size)
+            let bottom = y(Double(pitchGoal.low) - 0.5, size)
+            Rectangle()
+                .stroke(Color(.systemBackground).opacity(0.9), lineWidth: 6)
+                .frame(width: right - left, height: max(2, bottom - top))
+                .offset(x: left, y: top)
+            Rectangle()
+                .stroke(Color.primary, lineWidth: 2.5)
+                .frame(width: right - left, height: max(2, bottom - top))
+                .offset(x: left, y: top)
         }
     }
 
@@ -154,8 +181,8 @@ struct GridView: View {
                 .stroke(.primary.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
                 .frame(width: size.width, height: max(2, bottom - top))
                 .offset(y: top)
-                .overlay(alignment: .topLeading) {
-                    Text("Goal").font(.caption2).padding(3).offset(y: top)
+                .overlay(alignment: .topTrailing) {
+                    Text("Pitch goal").font(.caption2.weight(.semibold)).padding(3).offset(y: top)
                         .foregroundStyle(.secondary)
                 }
         }
@@ -259,6 +286,12 @@ struct GridView: View {
         let now = Date()
         trail.append(TrailPoint(date: now, x: score, midi: Note.midiValue(frequency: pitch.frequency)))
         trail.removeAll { now.timeIntervalSince($0.date) > Self.trailLife }
+    }
+
+    private var goalInstructions: String {
+        ResonanceGoal(low: resLow, high: resHigh) == nil
+            ? "To set a resonance goal, drag sideways across the grid."
+            : "Tap the grid to clear your resonance goal."
     }
 
     private var hint: String {
