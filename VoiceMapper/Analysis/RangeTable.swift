@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// How a speaking voice at a given pitch is typically perceived. These are
 /// typical ranges from speaking-F0 research (Gelfer & Mikos 2005; Hillenbrand &
@@ -30,6 +31,31 @@ enum PerceivedGender: Sendable {
         case .ambiguous: 160
         case .female: 210
         }
+    }
+
+    /// Colour shared by the range table and the grid so zones match.
+    var color: Color {
+        switch self {
+        case .male: .blue
+        case .ambiguous: .purple
+        case .female: Color(red: 1.0, green: 0.45, blue: 0.75)
+        }
+    }
+
+    /// Resonance score (0–100) where the zone is most common, from average ΔF
+    /// of male / female voices (Hillenbrand et al. 1995; see `ResonanceScorer`).
+    var typicalResonance: Double {
+        switch self {
+        case .male: 25
+        case .ambiguous: 50
+        case .female: 72
+        }
+    }
+
+    /// 0.15–1: how typical a resonance score is within the zone.
+    func resonanceCommonness(at score: Double) -> Double {
+        let d = (score - typicalResonance) / 18
+        return max(0.15, exp(-d * d / 2))
     }
 
     /// 0.2–1: how typical a pitch is within the zone, fading with distance in

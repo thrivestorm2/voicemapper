@@ -155,13 +155,7 @@ private struct ZoneSwatch: View {
             .frame(width: 40, height: 14)
     }
 
-    private var color: Color {
-        switch perceived {
-        case .male: .blue
-        case .ambiguous: .purple
-        case .female: Color(red: 1.0, green: 0.45, blue: 0.75)
-        }
-    }
+    private var color: Color { perceived.color }
 }
 
 private struct Legend: View {

@@ -16,10 +16,15 @@ struct GridView: View {
     @State private var lastScore: Double?
     @State private var showingInfo = false
 
-    private static let lowMidi = 40.0   // E2
-    private static let highMidi = 72.0  // C5
+    /// Centred on the androgynous zone (resonance 50, ~156 Hz) with equal reach
+    /// each way: 50 score points sideways, 16 semitones up and down, drawn square.
+    private static let centerScore = 50.0
+    private static let centerMidi = 51.0  // D♯3
+    private static let halfSpan = 16.0
+    static let lowMidi = centerMidi - halfSpan
+    static let highMidi = centerMidi + halfSpan
     private static let trailLife = 1.5
-    private static let axisNotes = [48, 55, 60, 67]  // C3 G3 C4 G4
+    private static let axisNotes = [36, 43, 48, 55, 60, 64]  // C2 G2 C3 G3 C4 E4
 
     struct TrailPoint: Equatable {
         let date: Date
@@ -27,44 +32,31 @@ struct GridView: View {
         let midi: Double
     }
 
-    private struct Zone {
-        let gender: PerceivedGender
-        let score: Double
-        let midi: Double
-        let color: Color
-    }
-
-    // Typical positions: pitch from PerceivedGender.typicalFrequency, resonance
-    // from average ΔF for male / female voices (see ResonanceScorer).
-    private static let zones: [Zone] = [
-        Zone(gender: .male, score: 25, midi: Note.midiValue(frequency: 120), color: .blue),
-        Zone(gender: .ambiguous, score: 50, midi: Note.midiValue(frequency: 160), color: .green),
-        Zone(gender: .female, score: 72, midi: Note.midiValue(frequency: 210), color: .orange),
-    ]
-
     var body: some View {
         VStack(spacing: 6) {
-            HStack(alignment: .top, spacing: 4) {
-                axisLabels
-                GeometryReader { geo in
-                    let size = geo.size
-                    ZStack(alignment: .topLeading) {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color(.secondarySystemBackground))
-                        ForEach(Self.zones.indices, id: \.self) { i in
-                            zoneView(Self.zones[i], in: size)
-                        }
-                        goalBand(in: size)
-                        gridLines(in: size)
-                        trailAndDot(in: size)
+            GeometryReader { geo in
+                let size = geo.size
+                ZStack(alignment: .topLeading) {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(.secondarySystemBackground))
+                    ZoneField().frame(width: size.width, height: size.height)
+                    ForEach([PerceivedGender.male, .ambiguous, .female], id: \.letter) { zone in
+                        zoneLabel(zone, in: size)
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(.quaternary))
+                    goalBand(in: size)
+                    gridLines(in: size)
+                    trailAndDot(in: size)
+                    offScaleIndicator(in: size)
                 }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Pitch and resonance grid")
-                .accessibilityValue(accessibilityValue)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(.quaternary))
             }
+            .aspectRatio(1, contentMode: .fit)
+            .overlay(alignment: .leading) { axisLabels.offset(x: -34) }
+            .padding(.leading, 34)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Pitch and resonance grid")
+            .accessibilityValue(accessibilityValue)
 
             HStack {
                 Text("Darker")
@@ -106,17 +98,16 @@ struct GridView: View {
 
     // MARK: - Layers
 
-    private func zoneView(_ zone: Zone, in size: CGSize) -> some View {
-        let w = size.width * 0.5, h = size.height * 8 / (Self.highMidi - Self.lowMidi)
-        return ZStack {
-            Ellipse().fill(zone.color.opacity(0.22))
-            Text(zone.gender.letter)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(zone.color)
-        }
-        .frame(width: w, height: h)
-        .position(x: x(zone.score, size), y: y(zone.midi, size))
-        .accessibilityHidden(true)
+    private func zoneLabel(_ zone: PerceivedGender, in size: CGSize) -> some View {
+        Text(zone.letter)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(zone.color)
+            .frame(width: 22, height: 22)
+            .background(Circle().fill(Color(.systemBackground).opacity(0.85)))
+            .overlay(Circle().stroke(zone.color, lineWidth: 1.5))
+            .position(x: x(zone.typicalResonance, size),
+                      y: y(Note.midiValue(frequency: zone.typicalFrequency), size))
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -144,6 +135,36 @@ struct GridView: View {
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .overlay {
+            // Axes crossing at the centre (the androgynous point).
+            ZStack {
+                Rectangle().fill(.primary.opacity(0.35)).frame(width: 1.5)
+                Rectangle().fill(.primary.opacity(0.35)).frame(height: 1.5)
+            }
+        }
+    }
+
+    private var isOffScale: Bool {
+        guard let pitch else { return false }
+        let midi = Note.midiValue(frequency: pitch.frequency)
+        return midi > Self.highMidi || midi < Self.lowMidi
+    }
+
+    /// When the pitch is above or below the grid, pin a pill with the note to
+    /// the top or bottom edge at the current resonance.
+    @ViewBuilder
+    private func offScaleIndicator(in size: CGSize) -> some View {
+        if let pitch, isOffScale {
+            let above = Note.midiValue(frequency: pitch.frequency) > Self.highMidi
+            let px = min(max(x(resonance?.score ?? lastScore ?? Self.centerScore, size), 40), size.width - 40)
+            Label(pitch.note.name, systemImage: above ? "arrow.up" : "arrow.down")
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(.thinMaterial, in: Capsule())
+                .overlay(Capsule().stroke(Color.accentColor, lineWidth: 2))
+                .position(x: px, y: above ? 18 : size.height - 18)
+                .accessibilityHidden(true)
+        }
     }
 
     private func trailAndDot(in size: CGSize) -> some View {
@@ -165,7 +186,7 @@ struct GridView: View {
                     gc.stroke(seg, with: .color(.accentColor.opacity(0.6 * (1 - age))),
                               style: StrokeStyle(lineWidth: 4, lineCap: .round))
                 }
-                if let pitch, let score = resonance?.score ?? lastScore {
+                if let pitch, !isOffScale, let score = resonance?.score ?? lastScore {
                     let c = CGPoint(x: x(score, size), y: y(Note.midiValue(frequency: pitch.frequency), size))
                     let dot = Path(ellipseIn: CGRect(x: c.x - 9, y: c.y - 9, width: 18, height: 18))
                     if resonance != nil {
@@ -228,4 +249,33 @@ struct GridView: View {
              isListening: true)
         .padding()
         .frame(height: 400)
+}
+
+/// Zone shading: bands by pitch use the same thresholds and colours as the
+/// range table; opacity peaks at the zone's most common pitch and resonance
+/// and fades in both directions.
+private struct ZoneField: View {
+    private static let cells = 64
+
+    var body: some View {
+        Canvas { gc, size in
+            let n = Self.cells
+            let w = size.width / Double(n), h = size.height / Double(n)
+            for row in 0..<n {
+                let midi = GridView.highMidi - (Double(row) + 0.5) / Double(n) * (GridView.highMidi - GridView.lowMidi)
+                let hz = 440 * pow(2, (midi - 69) / 12)
+                let zone = PerceivedGender(frequency: hz)
+                let pitchStrength = zone.commonness(at: hz)
+                for col in 0..<n {
+                    let score = (Double(col) + 0.5) / Double(n) * 100
+                    let alpha = 0.6 * pitchStrength * zone.resonanceCommonness(at: score)
+                    // Edges snapped to whole points so neighbours meet exactly.
+                    let x0 = (Double(col) * w).rounded(), x1 = (Double(col + 1) * w).rounded()
+                    let y0 = (Double(row) * h).rounded(), y1 = (Double(row + 1) * h).rounded()
+                    gc.fill(Path(CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)),
+                            with: .color(zone.color.opacity(alpha)))
+                }
+            }
+        }
+    }
 }
