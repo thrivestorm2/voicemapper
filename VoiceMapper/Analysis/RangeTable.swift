@@ -33,14 +33,16 @@ enum PerceivedGender: Sendable {
         }
     }
 
-    /// Colour shared by the range table and the grid so zones match.
-    var color: Color {
+    /// Pure zone colour as RGB, shared with the blended grid shading.
+    var rgb: (Double, Double, Double) {
         switch self {
-        case .male: .blue
-        case .ambiguous: .purple
-        case .female: Color(red: 1.0, green: 0.45, blue: 0.75)
+        case .male: (0.0, 0.48, 1.0)
+        case .ambiguous: (0.69, 0.32, 0.87)
+        case .female: (1.0, 0.45, 0.75)
         }
     }
+
+    var color: Color { Color(red: rgb.0, green: rgb.1, blue: rgb.2) }
 
     /// Resonance score (0–100) where the zone is most common, from average ΔF
     /// of male / female voices (Hillenbrand et al. 1995; see `ResonanceScorer`).

@@ -5,6 +5,8 @@ import SwiftUI
 struct GridView: View {
     @AppStorage(GoalRange.lowKey) private var goalLow = 0
     @AppStorage(GoalRange.highKey) private var goalHigh = 0
+    @AppStorage(ResonanceGoal.lowKey) private var resLow = 0.0
+    @AppStorage(ResonanceGoal.highKey) private var resHigh = 0.0
 
     let pitch: PitchReading?
     let resonance: ResonanceReading?
@@ -44,12 +46,15 @@ struct GridView: View {
                         zoneLabel(zone, in: size)
                     }
                     goalBand(in: size)
+                    resonanceGoalBand(in: size)
                     gridLines(in: size)
                     trailAndDot(in: size)
                     offScaleIndicator(in: size)
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(.quaternary))
+                .contentShape(Rectangle())
+                .gesture(resonanceGoalGesture(width: size.width))
             }
             .aspectRatio(1, contentMode: .fit)
             .overlay(alignment: .leading) { axisLabels.offset(x: -34) }
@@ -67,7 +72,7 @@ struct GridView: View {
                 Button { showingInfo = true } label: { Image(systemName: "info.circle") }
                     .accessibilityLabel("About the grid")
                     .popover(isPresented: $showingInfo) {
-                        Text("Up is higher pitch, right is brighter resonance (formant spacing).\n\nShaded areas show where voices are typically heard as male (M), ambiguous (A) or female (F). They're typical ranges, not rules: intonation, vowels and speech habits matter too.\n\nVowels change resonance a lot (“ee” reads brighter than “oo”), so compare on the same vowel. There's no correct place on this grid. Work toward what feels like your voice.")
+                        Text("Up is higher pitch, right is brighter resonance (formant spacing).\n\nShaded areas show where voices are typically heard as male (M), ambiguous (A) or female (F). The colours blend because there are no hard edges: they're typical ranges, not rules, and intonation, vowels and speech habits matter too.\n\nSet a pitch goal by tapping notes on the Range tab. Set a resonance goal by dragging sideways across the grid; tap the grid to clear it.\n\nVowels change resonance a lot (“ee” reads brighter than “oo”), so compare on the same vowel. There's no correct place on this grid. Work toward what feels like your voice.")
                             .font(.subheadline)
                             .padding()
                             .frame(width: 300)
@@ -108,6 +113,36 @@ struct GridView: View {
             .position(x: x(zone.typicalResonance, size),
                       y: y(Note.midiValue(frequency: zone.typicalFrequency), size))
             .accessibilityHidden(true)
+    }
+
+    /// Drag sideways to set a resonance goal; a tap clears it.
+    private func resonanceGoalGesture(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { drag in
+                guard abs(drag.translation.width) >= 8 else { return }
+                let a = Double(drag.startLocation.x / width) * 100
+                let b = Double(drag.location.x / width) * 100
+                resLow = min(max(0, min(a, b)), 100)
+                resHigh = min(100, max(0, max(a, b)))
+            }
+            .onEnded { drag in
+                if abs(drag.translation.width) < 8 { resLow = 0; resHigh = 0 }
+            }
+    }
+
+    @ViewBuilder
+    private func resonanceGoalBand(in size: CGSize) -> some View {
+        if let goal = ResonanceGoal(low: resLow, high: resHigh) {
+            let left = x(goal.low, size), right = x(goal.high, size)
+            Rectangle()
+                .stroke(.primary.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                .frame(width: right - left, height: size.height)
+                .offset(x: left)
+                .overlay(alignment: .bottomLeading) {
+                    Text("Goal").font(.caption2).padding(3).offset(x: left)
+                        .foregroundStyle(.secondary)
+                }
+        }
     }
 
     @ViewBuilder
@@ -228,8 +263,13 @@ struct GridView: View {
 
     private var hint: String {
         if pitch == nil { return " " }
-        if resonance == nil { return "Hold a vowel like “ee” or “ah”" }
-        return " "
+        guard let resonance else { return "Hold a vowel like “ee” or “ah”" }
+        guard let goal = ResonanceGoal(low: resLow, high: resHigh) else { return " " }
+        switch goal.direction(of: resonance.score) {
+        case nil: return "In your resonance goal"
+        case .brighter: return "Goal is brighter"
+        case .darker: return "Goal is darker"
+        }
     }
 
     private var accessibilityValue: String {
@@ -251,9 +291,9 @@ struct GridView: View {
         .frame(height: 400)
 }
 
-/// Zone shading: bands by pitch use the same thresholds and colours as the
-/// range table; opacity peaks at the zone's most common pitch and resonance
-/// and fades in both directions.
+/// Zone shading: colour blends smoothly between male, ambiguous and female
+/// (see `VoicePerception`); strength follows how common voices are at each
+/// spot, so it peaks around each zone's typical pitch and resonance.
 private struct ZoneField: View {
     private static let cells = 64
 
@@ -264,16 +304,15 @@ private struct ZoneField: View {
             for row in 0..<n {
                 let midi = GridView.highMidi - (Double(row) + 0.5) / Double(n) * (GridView.highMidi - GridView.lowMidi)
                 let hz = 440 * pow(2, (midi - 69) / 12)
-                let zone = PerceivedGender(frequency: hz)
-                let pitchStrength = zone.commonness(at: hz)
+                let y0 = (Double(row) * h).rounded(), y1 = (Double(row + 1) * h).rounded()
                 for col in 0..<n {
                     let score = (Double(col) + 0.5) / Double(n) * 100
-                    let alpha = 0.6 * pitchStrength * zone.resonanceCommonness(at: score)
+                    let blend = VoicePerception.blend(frequency: hz, score: score)
+                    let alpha = 0.1 + 0.55 * VoicePerception.commonness(frequency: hz, score: score, blend: blend)
                     // Edges snapped to whole points so neighbours meet exactly.
                     let x0 = (Double(col) * w).rounded(), x1 = (Double(col + 1) * w).rounded()
-                    let y0 = (Double(row) * h).rounded(), y1 = (Double(row + 1) * h).rounded()
                     gc.fill(Path(CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)),
-                            with: .color(zone.color.opacity(alpha)))
+                            with: .color(VoicePerception.color(blend).opacity(alpha)))
                 }
             }
         }
