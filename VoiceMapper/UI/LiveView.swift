@@ -1,8 +1,15 @@
 import SwiftUI
+import SwiftData
 
 struct LiveView: View {
     @Environment(AudioEngine.self) private var audio
+    @Query(sort: \PracticeSession.start) private var allSessions: [PracticeSession]
+    @AppStorage("showHistoryOverlay") private var showOverlay = false
+    @AppStorage("showHeatMap") private var showHeat = false
+    @AppStorage("historyPeriod") private var periodRaw = HistoryPeriod.week.rawValue
     @State private var showingHearYourself = false
+
+    private var period: HistoryPeriod { HistoryPeriod(rawValue: periodRaw) ?? .week }
 
     private var isCapturing: Bool { audio.isListening || audio.isHearingYourself }
 
@@ -10,8 +17,12 @@ struct LiveView: View {
         NavigationStack {
             VStack(spacing: 12) {
                 PitchLabel(reading: audio.pitch, isListening: isCapturing)
-                GridView(pitch: audio.pitch, resonance: audio.resonance, isListening: isCapturing)
+                let sessions = (showOverlay || showHeat) ? HeatmapBinner.sessions(allSessions, in: period) : []
+                GridView(pitch: audio.pitch, resonance: audio.resonance, isListening: isCapturing,
+                         heat: showHeat ? HeatmapBinner.cells(from: sessions) : [],
+                         trace: showOverlay ? HeatmapBinner.points(from: sessions) : [])
                     .padding(.horizontal, 16)
+                historyControls
                 Color.clear.frame(height: 56)  // room for the buttons below
             }
             .padding(.top, 8)
@@ -52,6 +63,23 @@ struct LiveView: View {
                     .presentationDetents([.medium, .large])
             }
         }
+    }
+}
+
+extension LiveView {
+    fileprivate var historyControls: some View {
+        HStack(spacing: 8) {
+            Toggle("History", isOn: $showOverlay)
+            Toggle("Heat map", isOn: $showHeat)
+            Picker("Period", selection: $periodRaw) {
+                ForEach(HistoryPeriod.allCases) { Text($0.label).tag($0.rawValue) }
+            }
+            .pickerStyle(.menu)
+        }
+        .toggleStyle(.button)
+        .buttonStyle(.bordered)
+        .font(.subheadline)
+        .padding(.horizontal, 16)
     }
 }
 
