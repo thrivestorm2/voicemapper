@@ -11,6 +11,8 @@ struct GridView: View {
     let pitch: PitchReading?
     let resonance: ResonanceReading?
     let isListening: Bool
+    var heat: [HeatCell] = []
+    var trace: [HistoryPoint] = []
 
     @State private var trail: [TrailPoint] = []
     /// Last resonance seen, kept so the dot can stay on screen at pitches where
@@ -42,6 +44,7 @@ struct GridView: View {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(Color(.secondarySystemBackground))
                     ZoneField().frame(width: size.width, height: size.height)
+                    HeatmapLayer(cells: heat).frame(width: size.width, height: size.height)
                     ForEach([PerceivedGender.male, .ambiguous, .female], id: \.letter) { zone in
                         zoneLabel(zone, in: size)
                     }
@@ -49,6 +52,7 @@ struct GridView: View {
                     resonanceGoalBand(in: size)
                     targetBox(in: size)
                     gridLines(in: size)
+                    HistoryTraceLayer(points: trace).frame(width: size.width, height: size.height)
                     trailAndDot(in: size)
                     offScaleIndicator(in: size)
                 }
@@ -327,7 +331,7 @@ struct GridView: View {
 /// Zone shading: colour blends smoothly between male, ambiguous and female
 /// (see `VoicePerception`); strength follows how common voices are at each
 /// spot, so it peaks around each zone's typical pitch and resonance.
-private struct ZoneField: View {
+struct ZoneField: View {
     private static let cells = 64
 
     var body: some View {
