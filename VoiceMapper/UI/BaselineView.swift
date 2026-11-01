@@ -7,7 +7,8 @@ struct BaselineView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
-    private static let length = 20.0
+    private static let length = 30.0
+    private static let passage = "When the sunlight strikes raindrops in the air, they act as a prism and form a rainbow. The rainbow is a division of white light into many beautiful colors. These take the shape of a long round arch, with its path high above, and its two ends apparently beyond the horizon. There is, according to legend, a boiling pot of gold at one end. People look, but no one ever finds it. When a man looks for something beyond his reach, his friends say he is looking for the pot of gold at the end of the rainbow."
     @State private var elapsed = 0.0
     @State private var isRecording = false
     @State private var hz: [Double] = []
@@ -18,9 +19,14 @@ struct BaselineView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
-                Text("Speak or read aloud in your natural, comfortable voice for 20 seconds. This is your reference point, not a target.")
+                Text("Read this passage aloud in your natural, comfortable voice. This is your reference point, not a target.")
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(Self.passage).font(.title3)
+                    Text("The Rainbow Passage (first paragraph), from Fairbanks, G. (1960), Voice and Articulation Drillbook, 2nd ed., Harper & Row.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 if isRecording {
                     ProgressView(value: elapsed, total: Self.length)
                     Text(audio.pitch.map { "\($0.note.name)" } ?? "–")
